@@ -140,7 +140,7 @@ void process_message_from_cloud(uint8_t *msg, uint32_t len)
 
 	if(strcmp(type_string, "sens") == 0) {
 		if(strcmp(value_string, "read") == 0) {
-			k_sem_give(&send_sensor_data_to_cloud);
+			k_work_reschedule(&cloud_update_work, K_NO_WAIT);
 		}
 	}
 	if(strcmp(type_string, "led") == 0 && strcmp(value_string, "on") == 0) {
