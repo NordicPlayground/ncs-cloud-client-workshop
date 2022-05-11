@@ -24,6 +24,13 @@ static K_SEM_DEFINE(lte_connected, 0, 1);
 
 static K_SEM_DEFINE(send_sensor_data_to_cloud, 0, 1);
 
+static K_SEM_DEFINE(update_led_status, 0, 1);
+struct {
+	int duty_cycle;
+	int mode;
+	int on;
+} my_led_status;
+
 /* Flag to signify if the cloud client is connected or not connected to cloud,
  * used to abort/allow cloud publications.
  */
@@ -135,6 +142,14 @@ void process_message_from_cloud(uint8_t *msg, uint32_t len)
 		if(strcmp(value_string, "read") == 0) {
 			k_sem_give(&send_sensor_data_to_cloud);
 		}
+	}
+	if(strcmp(type_string, "led") == 0 && strcmp(value_string, "on") == 0) {
+		my_led_status.on = 1;
+		k_sem_give(&update_led_status);
+	}
+	if(strcmp(type_string, "led") == 0 && strcmp(value_string, "off") == 0) {
+		my_led_status.on = 0;
+		k_sem_give(&update_led_status);
 	}
 }
 
@@ -386,3 +401,54 @@ void on_sensor_read(void)
 }
 
 K_THREAD_DEFINE(my_sensor_thread, 512, on_sensor_read, 0, 0, 0, 5, 0, 0);
+
+#include <drivers/pwm.h>
+
+#define PWM_LED0_NODE	DT_ALIAS(pwm_led0)
+
+#if DT_NODE_HAS_STATUS(PWM_LED0_NODE, okay)
+#define PWM_CTLR	DT_PWMS_CTLR(PWM_LED0_NODE)
+#define PWM_CHANNEL	DT_PWMS_CHANNEL(PWM_LED0_NODE)
+#define PWM_FLAGS	DT_PWMS_FLAGS(PWM_LED0_NODE)
+#else
+#error "Unsupported board: pwm-led0 devicetree alias is not defined"
+#define PWM_CTLR	DT_INVALID_NODE
+#define PWM_CHANNEL	0
+#define PWM_FLAGS	0
+#endif
+
+#define MIN_PERIOD_USEC	(USEC_PER_SEC / 64U)
+#define MAX_PERIOD_USEC	USEC_PER_SEC
+
+void on_blink_led(void)
+{
+	const struct device *pwm;
+	uint32_t max_period;
+	uint32_t period;
+	uint8_t dir = 0U;
+	int ret;
+
+	printk("PWM-based blinky\n");
+
+	pwm = DEVICE_DT_GET(PWM_CTLR);
+	if (!device_is_ready(pwm)) {
+		printk("Error: PWM device %s is not ready\n", pwm->name);
+		return;
+	}
+
+	max_period = 100000;
+
+	period = max_period;
+	while (1) {
+		k_sem_take(&update_led_status, K_FOREVER);
+
+		if(my_led_status.on) {
+			pwm_pin_set_usec(pwm, PWM_CHANNEL, period, period / 2U, PWM_FLAGS);
+		}
+		else {
+			pwm_pin_set_usec(pwm, PWM_CHANNEL, period, 0, PWM_FLAGS);
+		}
+	}	
+}
+
+K_THREAD_DEFINE(blink_led_thread, 512, on_blink_led, 0, 0, 0, 5, 0, 0);
