@@ -9,6 +9,7 @@
 #include <modem/lte_lc.h>
 #include <net/cloud.h>
 #include <net/socket.h>
+#include <drivers/sensor.h>
 #include <dk_buttons_and_leds.h>
 
 #include <logging/log.h>
@@ -21,10 +22,14 @@ static struct k_work_delayable connect_work;
 
 static K_SEM_DEFINE(lte_connected, 0, 1);
 
+static K_SEM_DEFINE(send_sensor_data_to_cloud, 0, 1);
+
 /* Flag to signify if the cloud client is connected or not connected to cloud,
  * used to abort/allow cloud publications.
  */
 static bool cloud_connected;
+
+const struct device *dev;
 
 static void connect_work_fn(struct k_work *work)
 {
@@ -55,13 +60,19 @@ static void cloud_update_work_fn(struct k_work *work)
 		return;
 	}
 
-	LOG_INF("Publishing message: %s", log_strdup(CONFIG_CLOUD_MESSAGE));
-
+	struct sensor_value temp;
+	sensor_sample_fetch(dev);
+	sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+	static uint8_t cloud_msg[128];
+	sprintf(cloud_msg,  "{\n\"appId\": \"TEMP\",\n\"messageType\": \"DATA\",\n\"data\": \"%d.%06d\",\n\"ts\": 1634864328329\n}",
+						temp.val1, temp.val2);
 	struct cloud_msg msg = {
 		.qos = CLOUD_QOS_AT_MOST_ONCE,
-		.buf = CONFIG_CLOUD_MESSAGE,
-		.len = strlen(CONFIG_CLOUD_MESSAGE)
+		.buf = cloud_msg,
+		.len = strlen(cloud_msg)
 	};
+
+	LOG_INF("Publishing message: %s", log_strdup(cloud_msg));
 
 	/* When using the nRF Cloud backend data is sent to the message topic.
 	 * This is in order to visualize the data in the web UI terminal.
@@ -83,6 +94,48 @@ static void cloud_update_work_fn(struct k_work *work)
 	k_work_schedule(&cloud_update_work,
 			K_SECONDS(CONFIG_CLOUD_MESSAGE_PUBLICATION_INTERVAL));
 #endif
+}
+
+void process_message_from_cloud(uint8_t *msg, uint32_t len)
+{
+	static uint8_t type_string[64];
+	int type_index = 0;
+	static uint8_t value_string[64];
+	int value_index = 0;
+	int delimiter_counter = 0;
+	for(int i = 0; i < len; i++) {
+		if(msg[i] == '\"') delimiter_counter++;
+		else {
+			switch(delimiter_counter) {
+				case 0:
+					// Do nothing, still waiting for the first delimiter
+					break;
+				case 1:
+					// Copy the type string
+					type_string[type_index++] = msg[i];
+					break;
+				case 2:
+					// Do nothing, waiting for the third delimiter
+					break;
+				case 3:
+					// Copy the value string
+					value_string[value_index++] = msg[i];
+					break;
+				default:
+					// Do nothing
+					break; 
+			}
+		}
+	}
+	type_string[type_index] = 0;
+	value_string[value_index] = 0;
+	//printk("JSON type: %s, JSON value: %s\n", type_string, value_string);
+
+	if(strcmp(type_string, "sens") == 0) {
+		if(strcmp(value_string, "read") == 0) {
+			k_sem_give(&send_sensor_data_to_cloud);
+		}
+	}
 }
 
 void cloud_event_handler(const struct cloud_backend *const backend,
@@ -128,6 +181,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		LOG_INF("Data received from cloud: %.*s",
 			evt->data.msg.len,
 			log_strdup(evt->data.msg.buf));
+		process_message_from_cloud(evt->data.msg.buf, evt->data.msg.len);
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
 		LOG_INF("CLOUD_EVT_PAIR_REQUEST");
@@ -307,17 +361,16 @@ void main(void)
 	k_work_schedule(&connect_work, K_NO_WAIT);
 }
 
-#include <drivers/sensor.h>
-
 void on_sensor_read(void)
 {
-	const struct device *dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
+	dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
 	struct sensor_value temp, press, humidity, gas_res;
 
 	printf("Device %p name is %s\n", dev, dev->name);
 
 	while (1) {
-		k_sleep(K_MSEC(3000));
+		//k_sleep(K_MSEC(3000));
+		k_sem_take(&send_sensor_data_to_cloud, K_FOREVER);
 
 		sensor_sample_fetch(dev);
 		sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
