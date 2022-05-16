@@ -11,10 +11,14 @@
 #include <net/socket.h>
 #include <drivers/sensor.h>
 #include <dk_buttons_and_leds.h>
+#include <event_manager.h>
 
 #include <logging/log.h>
 
 LOG_MODULE_REGISTER(cloud_client, CONFIG_CLOUD_CLIENT_LOG_LEVEL);
+
+#define MODULE main
+#include <caf/events/module_state_event.h>
 
 static struct cloud_backend *cloud_backend;
 static struct k_work_delayable cloud_update_work;
@@ -366,6 +370,10 @@ void main(void)
 		LOG_ERR("dk_buttons_init, error: %d", err);
 	}
 #endif
+
+	event_manager_init();
+	module_set_state(MODULE_STATE_READY);
+	
 	LOG_INF("Connecting to LTE network, this may take several minutes...");
 
 	k_sem_take(&lte_connected, K_FOREVER);
