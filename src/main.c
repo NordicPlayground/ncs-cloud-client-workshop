@@ -12,6 +12,7 @@
 #include <drivers/sensor.h>
 #include <dk_buttons_and_leds.h>
 #include <event_manager.h>
+#include <caf/events/led_event.h>
 
 #include <logging/log.h>
 
@@ -28,19 +29,29 @@ static K_SEM_DEFINE(lte_connected, 0, 1);
 
 static K_SEM_DEFINE(send_sensor_data_to_cloud, 0, 1);
 
-static K_SEM_DEFINE(update_led_status, 0, 1);
-struct {
-	int duty_cycle;
-	int mode;
-	int on;
-} my_led_status;
-
 /* Flag to signify if the cloud client is connected or not connected to cloud,
  * used to abort/allow cloud publications.
  */
 static bool cloud_connected;
 
 const struct device *dev;
+
+static void send_led_event(size_t led_id, const struct led_effect *led_effect)
+{
+	struct led_event *event = new_led_event();
+
+	event->led_id = led_id;
+	event->led_effect = led_effect;
+	EVENT_SUBMIT(event);
+}
+	
+const struct led_effect my_led_effect[] = {LED_EFFECT_LED_OFF(),
+										   LED_EFFECT_LED_BREATH(100, LED_COLOR(128,255,0)),
+										   LED_EFFECT_LED_BREATH(100, LED_COLOR(0,128,255))};
+static void led_update(int effect_index)
+{
+	send_led_event(0, &my_led_effect[effect_index]);
+}
 
 static void connect_work_fn(struct k_work *work)
 {
@@ -148,12 +159,10 @@ void process_message_from_cloud(uint8_t *msg, uint32_t len)
 		}
 	}
 	if(strcmp(type_string, "led") == 0 && strcmp(value_string, "on") == 0) {
-		my_led_status.on = 1;
-		k_sem_give(&update_led_status);
+		led_update(1);
 	}
 	if(strcmp(type_string, "led") == 0 && strcmp(value_string, "off") == 0) {
-		my_led_status.on = 0;
-		k_sem_give(&update_led_status);
+		led_update(0);
 	}
 }
 
