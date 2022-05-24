@@ -27,6 +27,8 @@ static K_SEM_DEFINE(lte_connected, 0, 1);
  */
 static bool cloud_connected;
 
+const struct device *dev;
+
 static void connect_work_fn(struct k_work *work)
 {
 	int err;
@@ -85,6 +87,43 @@ static void cloud_update_work_fn(struct k_work *work)
 			K_SECONDS(CONFIG_CLOUD_MESSAGE_PUBLICATION_INTERVAL));
 #endif
 }
+
+static void read_temp_work_fn(struct k_work *work)
+{
+	int err;
+	struct sensor_value temp, press, humidity, gas_res;
+	static uint8_t cloud_temp_message[256];
+	
+	sensor_sample_fetch(dev);
+	sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+	sensor_channel_get(dev, SENSOR_CHAN_PRESS, &press);
+	sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &humidity);
+	sensor_channel_get(dev, SENSOR_CHAN_GAS_RES, &gas_res);
+
+	sprintf(cloud_temp_message, "{\n\"appId\": \"TEMP\",\n\"messageType\": \"DATA\",\n\"data\": \"%d.%06d\",\n\"ts\": 1634864328329\n}",
+						temp.val1, temp.val2);
+
+	LOG_INF("Publishing message: %s", log_strdup(cloud_temp_message));
+
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.buf = cloud_temp_message,
+		.len = strlen(cloud_temp_message)
+	};
+
+	if (strcmp(CONFIG_CLOUD_BACKEND, "NRF_CLOUD") == 0) {
+		msg.endpoint.type = CLOUD_EP_MSG;
+	} else {
+		msg.endpoint.type = CLOUD_EP_STATE;
+	}
+
+	err = cloud_send(cloud_backend, &msg);
+	if (err) {
+		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+
+static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);
 
 bool decode_cloud_message(struct cloud_msg *message, uint8_t *target_type_str, uint8_t *target_value_str)
 {
@@ -168,6 +207,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 			log_strdup(evt->data.msg.buf));
 		if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
 			LOG_INF("Temperature read command received");
+			k_work_submit(&read_temp_work);
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
@@ -319,8 +359,7 @@ void main(void)
 
 	LOG_INF("Cloud client has started");
 
-	const struct device *dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
-	struct sensor_value temp, press, humidity, gas_res;
+	dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
 
 	cloud_backend = cloud_get_binding(CONFIG_CLOUD_BACKEND);
 	__ASSERT(cloud_backend != NULL, "%s backend not found",
@@ -349,19 +388,4 @@ void main(void)
 	LOG_INF("Connecting to cloud");
 
 	k_work_schedule(&connect_work, K_NO_WAIT);
-
-	while (1) {
-		k_sleep(K_MSEC(3000));
-
-		sensor_sample_fetch(dev);
-		sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-		sensor_channel_get(dev, SENSOR_CHAN_PRESS, &press);
-		sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &humidity);
-		sensor_channel_get(dev, SENSOR_CHAN_GAS_RES, &gas_res);
-
-		printf("T: %d.%06d; P: %d.%06d; H: %d.%06d; G: %d.%06d\n",
-				temp.val1, temp.val2, press.val1, press.val2,
-				humidity.val1, humidity.val2, gas_res.val1,
-				gas_res.val2);
-	}
 }
