@@ -125,6 +125,13 @@ static void read_temp_work_fn(struct k_work *work)
 
 static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);
 
+static void read_temp_timer_fn(struct k_timer *timer)
+{
+	k_work_submit(&read_temp_work);
+}
+
+static K_TIMER_DEFINE(read_temp_timer, read_temp_timer_fn, NULL);
+
 bool decode_cloud_message(struct cloud_msg *message, uint8_t *target_type_str, uint8_t *target_value_str)
 {
 	static uint8_t type_string[64];
@@ -208,6 +215,12 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
 			LOG_INF("Temperature read command received");
 			k_work_submit(&read_temp_work);
+		} else if(decode_cloud_message(&evt->data.msg, "temp", "continuous")) {
+			LOG_INF("Starting continuous temperature readouts");
+			k_timer_start(&read_temp_timer, K_MSEC(0), K_MSEC(10000));
+		} else if(decode_cloud_message(&evt->data.msg, "temp", "stop")) {
+			LOG_INF("Stopping continuous temperature readouts");
+			k_timer_stop(&read_temp_timer);
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
