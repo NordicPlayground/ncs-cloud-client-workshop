@@ -11,10 +11,14 @@
 #include <net/socket.h>
 #include <drivers/sensor.h>
 #include <dk_buttons_and_leds.h>
+#include <event_manager.h>
 
 #include <logging/log.h>
 
 LOG_MODULE_REGISTER(cloud_client, CONFIG_CLOUD_CLIENT_LOG_LEVEL);
+
+#define MODULE main
+#include <caf/events/module_state_event.h>
 
 static struct cloud_backend *cloud_backend;
 static struct k_work_delayable cloud_update_work;
@@ -386,6 +390,9 @@ void main(void)
 
 	work_init();
 	modem_configure();
+
+	event_manager_init();
+	module_set_state(MODULE_STATE_READY);
 
 #if defined(CONFIG_CLOUD_PUBLICATION_BUTTON_PRESS)
 	err = dk_buttons_init(button_handler);
