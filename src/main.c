@@ -86,6 +86,43 @@ static void cloud_update_work_fn(struct k_work *work)
 #endif
 }
 
+bool decode_cloud_message(struct cloud_msg *message, uint8_t *target_type_str, uint8_t *target_value_str)
+{
+	static uint8_t type_string[64];
+	int type_index = 0;
+	static uint8_t value_string[64];
+	int value_index = 0;
+	int delimiter_counter = 0;
+	for(int i = 0; i < message->len; i++) {
+		if(message->buf[i] == '\"') delimiter_counter++;
+		else {
+			switch(delimiter_counter) {
+				case 0:
+					// Do nothing, still waiting for the first delimiter
+					break;
+				case 1:
+					// Copy the type string
+					type_string[type_index++] = message->buf[i];
+					break;
+				case 2:
+					// Do nothing, waiting for the third delimiter
+					break;
+				case 3:
+					// Copy the value string
+					value_string[value_index++] = message->buf[i];
+					break;
+				default:
+					break; 
+			}
+		}
+	}
+	type_string[type_index] = 0;
+	value_string[value_index] = 0;
+
+	// Return true if both the type and value strings match
+	return strcmp(type_string, target_type_str) == 0 && strcmp(value_string, target_value_str) == 0;
+}
+
 void cloud_event_handler(const struct cloud_backend *const backend,
 			 const struct cloud_event *const evt,
 			 void *user_data)
@@ -129,6 +166,9 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		LOG_INF("Data received from cloud: %.*s",
 			evt->data.msg.len,
 			log_strdup(evt->data.msg.buf));
+		if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
+			LOG_INF("Temperature read command received");
+		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
 		LOG_INF("CLOUD_EVT_PAIR_REQUEST");
