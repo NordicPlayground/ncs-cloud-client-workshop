@@ -12,6 +12,7 @@
 #include <drivers/sensor.h>
 #include <dk_buttons_and_leds.h>
 #include <event_manager.h>
+#include <caf/events/led_event.h>
 
 #include <logging/log.h>
 
@@ -32,6 +33,15 @@ static K_SEM_DEFINE(lte_connected, 0, 1);
 static bool cloud_connected;
 
 const struct device *dev;
+
+static void send_led_event(const struct led_effect *effect)
+{
+	struct led_event *event = new_led_event();
+
+	event->led_id = 0;
+	event->led_effect = effect;
+	EVENT_SUBMIT(event);
+}
 
 static void connect_work_fn(struct k_work *work)
 {
@@ -173,6 +183,9 @@ bool decode_cloud_message(struct cloud_msg *message, uint8_t *target_type_str, u
 	return strcmp(type_string, target_type_str) == 0 && strcmp(value_string, target_value_str) == 0;
 }
 
+const struct led_effect led_effect_pulse = LED_EFFECT_LED_BREATH(100, LED_COLOR(255,255,0));
+const struct led_effect led_effect_off = LED_EFFECT_LED_OFF();
+
 void cloud_event_handler(const struct cloud_backend *const backend,
 			 const struct cloud_event *const evt,
 			 void *user_data)
@@ -225,6 +238,12 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		} else if(decode_cloud_message(&evt->data.msg, "temp", "stop")) {
 			LOG_INF("Stopping continuous temperature readouts");
 			k_timer_stop(&read_temp_timer);
+		} else if(decode_cloud_message(&evt->data.msg, "led", "pulse")) {
+			LOG_INF("Setting LED to pulse");
+			send_led_event(&led_effect_pulse);
+		} else if(decode_cloud_message(&evt->data.msg, "led", "off")) {
+			LOG_INF("Turning off led");
+			send_led_event(&led_effect_off);
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
