@@ -13,6 +13,7 @@
 #include <dk_buttons_and_leds.h>
 #include <event_manager.h>
 #include <caf/events/led_event.h>
+#include <date_time.h>
 
 #include <logging/log.h>
 
@@ -107,15 +108,22 @@ static void read_temp_work_fn(struct k_work *work)
 	int err;
 	struct sensor_value temp, press, humidity, gas_res;
 	static uint8_t cloud_temp_message[256];
-	
+
+	int64_t unix_time = 0;
+	err = date_time_now(&unix_time);
+	if (err) {
+		LOG_ERR("Failed to get time: %d", err);
+		return;
+	}
+
 	sensor_sample_fetch(dev);
 	sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
 	sensor_channel_get(dev, SENSOR_CHAN_PRESS, &press);
 	sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &humidity);
 	sensor_channel_get(dev, SENSOR_CHAN_GAS_RES, &gas_res);
 
-	sprintf(cloud_temp_message, "{\n\"appId\": \"TEMP\",\n\"messageType\": \"DATA\",\n\"data\": \"%d.%06d\",\n\"ts\": 1634864328329\n}",
-						temp.val1, temp.val2);
+	sprintf(cloud_temp_message, "{\n\"appId\": \"TEMP\",\n\"messageType\": \"DATA\",\n\"data\": \"%d.%06d\",\n\"ts\": %d%09d\n}",
+						temp.val1, temp.val2, (uint32_t)(unix_time/1000000000), (uint32_t)(unix_time % 1000000000));
 
 	LOG_INF("Publishing message: %s", log_strdup(cloud_temp_message));
 
