@@ -36,9 +36,6 @@ config CLOUD_PUBLICATION_SEQUENTIAL
 
 endchoice
 
-config POWER_SAVING_MODE_ENABLE
-	bool "Requests PSM from cellular network"
-
 endmenu
 
 module = CLOUD_CLIENT
