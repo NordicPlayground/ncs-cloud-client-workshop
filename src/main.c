@@ -154,7 +154,7 @@ static void read_temp_timer_fn(struct k_timer *timer)
 
 static K_TIMER_DEFINE(read_temp_timer, read_temp_timer_fn, NULL);
 
-bool decode_cloud_message(struct cloud_msg *message, uint8_t *target_type_str, uint8_t *target_value_str)
+bool decode_cloud_message(const struct cloud_msg *message, uint8_t *target_type_str, uint8_t *target_value_str)
 {
 	static uint8_t type_string[64];
 	int type_index = 0;
