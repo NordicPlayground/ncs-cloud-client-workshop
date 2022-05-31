@@ -14,6 +14,7 @@
 #include <event_manager.h>
 #include <caf/events/led_event.h>
 #include <date_time.h>
+#include <net/nrf_cloud.h>
 
 #include <logging/log.h>
 
@@ -63,6 +64,45 @@ static void connect_work_fn(struct k_work *work)
 	k_work_schedule(&connect_work,
 		K_SECONDS(CONFIG_CLOUD_CONNECTION_RETRY_TIMEOUT_SECONDS));
 }
+
+static void on_connected_work_fn(struct k_work *work)
+{
+	int err;
+	static struct nrf_cloud_svc_info_ui ui_info = {.temperature = 1,.humidity = 1, .button = 1};
+	static struct nrf_cloud_svc_info svc_info = {.ui = &ui_info, .fota = 0};
+	static cJSON *jsonObject;
+
+	jsonObject = cJSON_CreateObject();
+	if(jsonObject == 0) {
+		LOG_ERR("Can't create JSON object");
+		return;
+	}
+	err = nrf_cloud_service_info_json_encode(&svc_info, jsonObject);
+	if(err != 0) {
+		LOG_ERR("Error generating JSON message to enable temperature readings: %d", err);
+		return;
+	} 
+	
+	char *jsonMessage = cJSON_PrintUnformatted(jsonObject);
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.buf = jsonMessage,
+		.len = strlen(jsonMessage)
+	};	
+
+	if (strcmp(CONFIG_CLOUD_BACKEND, "NRF_CLOUD") == 0) {
+		msg.endpoint.type = CLOUD_EP_MSG;
+	} else {
+		msg.endpoint.type = CLOUD_EP_STATE;
+	}
+
+	err = cloud_send(cloud_backend, &msg);
+	if (err) {
+		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+
+K_WORK_DEFINE(on_connected_work, on_connected_work_fn);
 
 static void cloud_update_work_fn(struct k_work *work)
 {
@@ -200,6 +240,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 {
 	ARG_UNUSED(user_data);
 	ARG_UNUSED(backend);
+	int err;
 
 	switch (evt->type) {
 	case CLOUD_EVT_CONNECTING:
@@ -220,6 +261,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 #if defined(CONFIG_CLOUD_PUBLICATION_SEQUENTIAL)
 		k_work_reschedule(&cloud_update_work, K_NO_WAIT);
 #endif
+		k_work_submit(&on_connected_work);
 		break;
 	case CLOUD_EVT_DISCONNECTED:
 		LOG_INF("CLOUD_EVT_DISCONNECTED");
