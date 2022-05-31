@@ -12,6 +12,7 @@
 #include <dk_buttons_and_leds.h>
 #include <drivers/sensor.h>
 #include <date_time.h>
+#include "nrf_cloud_codec.h"
 
 #include <logging/log.h>
 
@@ -90,6 +91,37 @@ static void cloud_update_work_fn(struct k_work *work)
 #endif
 }
 
+// In order for the cloud to display temperature data in a graph it is necessary to send a device status message where the 
+// temperature flag is set to 1 in the ui_info field of the device_status structure
+static void set_device_status_work_fn(struct k_work *work)
+{
+	int err;
+	static struct nrf_cloud_svc_info_ui ui_info = {.temperature = 1};
+	static struct nrf_cloud_svc_info svc_info = {.ui = &ui_info, .fota = 0};
+	static struct nrf_cloud_device_status dev_status = {.svc = &svc_info, .modem = 0};
+	static struct nrf_cloud_data status_cloud_data;
+
+	err = nrf_cloud_device_status_encode(&dev_status, &status_cloud_data, true);
+	if(err) {
+		LOG_ERR("Error generating cloud device status message: %i", err);
+		return;
+	}
+
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.buf = (char *)status_cloud_data.ptr,
+		.len = status_cloud_data.len,
+		.endpoint.type = CLOUD_EP_STATE
+	};	
+
+	err = cloud_send(cloud_backend, &msg);
+	if (err) {
+		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+
+K_WORK_DEFINE(set_device_status_work, set_device_status_work_fn);
+
 // This function expects a cloud message on the format {"TYPE":"VALUE"}, where TYPE and VALUE are strings
 // If TYPE mathces target_type_str, and VALUE matches target_value_str, the function returns true
 bool decode_cloud_message(const struct cloud_msg *message, const uint8_t *target_type_str, const uint8_t *target_value_str)
@@ -150,6 +182,9 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 #if defined(CONFIG_CLOUD_PUBLICATION_SEQUENTIAL)
 		k_work_reschedule(&cloud_update_work, K_NO_WAIT);
 #endif
+
+		// When the cloud is ready the device status can be sent to the cloud, to enable the cloud temperature UI
+		k_work_submit(&set_device_status_work);
 		break;
 	case CLOUD_EVT_DISCONNECTED:
 		LOG_INF("CLOUD_EVT_DISCONNECTED");
