@@ -15,6 +15,7 @@
 #include <caf/events/led_event.h>
 #include <date_time.h>
 #include <net/nrf_cloud.h>
+#include "nrf_cloud_codec.h"
 
 #include <logging/log.h>
 
@@ -68,33 +69,23 @@ static void connect_work_fn(struct k_work *work)
 static void on_connected_work_fn(struct k_work *work)
 {
 	int err;
-	static struct nrf_cloud_svc_info_ui ui_info = {.temperature = 1,.humidity = 1, .button = 1};
+	static struct nrf_cloud_svc_info_ui ui_info = {.temperature = 1};
 	static struct nrf_cloud_svc_info svc_info = {.ui = &ui_info, .fota = 0};
-	static cJSON *jsonObject;
+	static struct nrf_cloud_device_status dev_status = {.svc = &svc_info, .modem = 0};
+	static struct nrf_cloud_data status_cloud_data;
 
-	jsonObject = cJSON_CreateObject();
-	if(jsonObject == 0) {
-		LOG_ERR("Can't create JSON object");
+	err = nrf_cloud_device_status_encode(&dev_status, &status_cloud_data, true);
+	if(err) {
+		LOG_ERR("Error generating cloud device status message: %i", err);
 		return;
 	}
-	err = nrf_cloud_service_info_json_encode(&svc_info, jsonObject);
-	if(err != 0) {
-		LOG_ERR("Error generating JSON message to enable temperature readings: %d", err);
-		return;
-	} 
-	
-	char *jsonMessage = cJSON_PrintUnformatted(jsonObject);
+
 	struct cloud_msg msg = {
 		.qos = CLOUD_QOS_AT_MOST_ONCE,
-		.buf = jsonMessage,
-		.len = strlen(jsonMessage)
+		.buf = (char *)status_cloud_data.ptr,
+		.len = status_cloud_data.len,
+		.endpoint.type = CLOUD_EP_STATE
 	};	
-
-	if (strcmp(CONFIG_CLOUD_BACKEND, "NRF_CLOUD") == 0) {
-		msg.endpoint.type = CLOUD_EP_MSG;
-	} else {
-		msg.endpoint.type = CLOUD_EP_STATE;
-	}
 
 	err = cloud_send(cloud_backend, &msg);
 	if (err) {
@@ -240,7 +231,6 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 {
 	ARG_UNUSED(user_data);
 	ARG_UNUSED(backend);
-	int err;
 
 	switch (evt->type) {
 	case CLOUD_EVT_CONNECTING:
