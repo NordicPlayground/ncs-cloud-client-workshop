@@ -13,10 +13,14 @@
 #include <drivers/sensor.h>
 #include <date_time.h>
 #include "nrf_cloud_codec.h"
+#include <event_manager.h>
 
 #include <logging/log.h>
 
 LOG_MODULE_REGISTER(cloud_client, CONFIG_CLOUD_CLIENT_LOG_LEVEL);
+
+#define MODULE main
+#include <caf/events/module_state_event.h>
 
 static struct cloud_backend *cloud_backend;
 static struct k_work_delayable cloud_update_work;
@@ -417,6 +421,9 @@ void main(void)
 	int err;
 
 	LOG_INF("Cloud client has started");
+
+	event_manager_init();
+	module_set_state(MODULE_STATE_READY);
 
 	dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
 	if(dev == 0) {
