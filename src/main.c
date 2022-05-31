@@ -14,6 +14,7 @@
 #include <date_time.h>
 #include "nrf_cloud_codec.h"
 #include <event_manager.h>
+#include <caf/events/led_event.h>
 
 #include <logging/log.h>
 
@@ -41,6 +42,25 @@ static K_TIMER_DEFINE(read_temp_timer, read_temp_timer_fn, NULL);
  * used to abort/allow cloud publications.
  */
 static bool cloud_connected;
+
+// Define various LED effects to be used by the application
+const struct led_effect led_effect_red = LED_EFFECT_LED_ON(LED_COLOR(255, 0, 0));
+const struct led_effect led_effect_blink_red = LED_EFFECT_LED_BLINK(100, LED_COLOR(255, 0, 0));
+const struct led_effect led_effect_pulse_red = LED_EFFECT_LED_BREATH(100, LED_COLOR(255,0,0));
+const struct led_effect led_effect_blue = LED_EFFECT_LED_ON(LED_COLOR(0, 255, 0));
+const struct led_effect led_effect_blink_blue = LED_EFFECT_LED_BLINK(100, LED_COLOR(0, 255, 0));
+const struct led_effect led_effect_pulse_blue = LED_EFFECT_LED_BREATH(100, LED_COLOR(0, 255, 0));
+const struct led_effect led_effect_off = LED_EFFECT_LED_OFF();
+
+// This function is used to send LED events to the LED module, in order to set the LED in different states
+static void send_led_event(const struct led_effect *effect)
+{
+	struct led_event *event = new_led_event();
+
+	event->led_id = 0;
+	event->led_effect = effect;
+	EVENT_SUBMIT(event);
+}
 
 static void connect_work_fn(struct k_work *work)
 {
@@ -225,6 +245,12 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 			LOG_INF("Stopping continuous temperature readouts");
 			// Stop the temperature read timer
 			k_timer_stop(&read_temp_timer);
+		} else if(decode_cloud_message(&evt->data.msg, "led", "blink red")) {
+			LOG_INF("Setting LED to blink red");
+			send_led_event(&led_effect_blink_red);
+		} else if(decode_cloud_message(&evt->data.msg, "led", "off")) {
+			LOG_INF("Turning off LED");
+			send_led_event(&led_effect_off);
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
