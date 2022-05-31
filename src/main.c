@@ -11,6 +11,7 @@
 #include <net/socket.h>
 #include <dk_buttons_and_leds.h>
 #include <drivers/sensor.h>
+#include <date_time.h>
 
 #include <logging/log.h>
 
@@ -21,6 +22,9 @@ static struct k_work_delayable cloud_update_work;
 static struct k_work_delayable connect_work;
 
 static K_SEM_DEFINE(lte_connected, 0, 1);
+
+static void read_temp_work_fn(struct k_work *work);
+static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);
 
 /* Flag to signify if the cloud client is connected or not connected to cloud,
  * used to abort/allow cloud publications.
@@ -167,6 +171,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		// Upon receiving the message {"temp":"read"} from the cloud, initiate a temperature reading
 		if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
 			LOG_INF("Temperature read command received");
+			k_work_submit(&read_temp_work);
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
@@ -315,6 +320,49 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 const struct device *dev;
 struct sensor_value temp, press, humidity, gas_res;
 
+#define CLOUD_TEMPERATURE_UPDATE_STRING "{\n\"appId\": \"TEMP\",\n\"messageType\": \"DATA\",\n\"data\": \"%d.%06d\",\n\"ts\": %d%09d\n}"
+
+static void read_temp_work_fn(struct k_work *work)
+{
+	int err;
+	static uint8_t cloud_temp_message[256];
+	int64_t unix_time = 0;
+
+	// Read the current time using the date_time library
+	err = date_time_now(&unix_time);
+	if (err) {
+		LOG_ERR("Failed to get time: %d", err);
+		return;
+	}
+
+	// Read the temperature using the sensor API
+	sensor_sample_fetch(dev);
+	sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+
+	// Prepare the temperature update by combining the updated temperature sample and the current datetime with the static JSON string defined above
+	// Since the sprintf function in Zephyr doesn't support conversion of 64-bit values, the datetime conversion is split in two
+	sprintf(cloud_temp_message, CLOUD_TEMPERATURE_UPDATE_STRING, temp.val1, temp.val2, 
+			(uint32_t)(unix_time / 1000000000), (uint32_t)(unix_time % 1000000000));
+	LOG_INF("Publishing message: %s", log_strdup(cloud_temp_message));
+
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.buf = cloud_temp_message,
+		.len = strlen(cloud_temp_message)
+	};
+
+	if (strcmp(CONFIG_CLOUD_BACKEND, "NRF_CLOUD") == 0) {
+		msg.endpoint.type = CLOUD_EP_MSG;
+	} else {
+		msg.endpoint.type = CLOUD_EP_STATE;
+	}
+
+	err = cloud_send(cloud_backend, &msg);
+	if (err) {
+		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+
 void main(void)
 {
 	int err;
@@ -353,19 +401,4 @@ void main(void)
 	LOG_INF("Connecting to cloud");
 
 	k_work_schedule(&connect_work, K_NO_WAIT);
-
-	while (1) {
-		k_sleep(K_MSEC(3000));
-
-		sensor_sample_fetch(dev);
-		sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-		sensor_channel_get(dev, SENSOR_CHAN_PRESS, &press);
-		sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &humidity);
-		sensor_channel_get(dev, SENSOR_CHAN_GAS_RES, &gas_res);
-
-		printf("T: %d.%06d; P: %d.%06d; H: %d.%06d; G: %d.%06d\n",
-				temp.val1, temp.val2, press.val1, press.val2,
-				humidity.val1, humidity.val2, gas_res.val1,
-				gas_res.val2);
-	}
 }
