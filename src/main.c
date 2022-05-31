@@ -27,6 +27,12 @@ static K_SEM_DEFINE(lte_connected, 0, 1);
 static void read_temp_work_fn(struct k_work *work);
 static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);
 
+static void read_temp_timer_fn(struct k_timer *timer)
+{
+	k_work_submit(&read_temp_work);
+}
+static K_TIMER_DEFINE(read_temp_timer, read_temp_timer_fn, NULL);
+
 /* Flag to signify if the cloud client is connected or not connected to cloud,
  * used to abort/allow cloud publications.
  */
@@ -207,6 +213,14 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
 			LOG_INF("Temperature read command received");
 			k_work_submit(&read_temp_work);
+		} else if(decode_cloud_message(&evt->data.msg, "temp", "timer")) {
+			LOG_INF("Starting continuous temperature readouts");
+			// Start the temperature read timer with an interval of 30 seconds
+			k_timer_start(&read_temp_timer, K_MSEC(0), K_MSEC(30000));
+		} else if(decode_cloud_message(&evt->data.msg, "temp", "stop")) {
+			LOG_INF("Stopping continuous temperature readouts");
+			// Stop the temperature read timer
+			k_timer_stop(&read_temp_timer);
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
