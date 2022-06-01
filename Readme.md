@@ -1,199 +1,48 @@
-.. _cloud_client:
+Cloud Client nRF91 Workshop
+---------------------------
+
+This repository contains a modified version of the cloud_client sample in the nRF Connect SDK which is intended to show how relatively simple examples can be extended with additional functionality, in order to implement more advanced use cases. 
+
+The goal of this workshop is to flash a Thingy91 with the cloud_client sample and connect to it from the nRF Cloud interface. 
+Then the example will be extended to take temperature readings from the BME680 sensor on the Thingy91, and send them to the cloud upon request. From the cloud the user can either request a single temperature reading, or start a timer that will read the temperature repeatedly at 30 second intervals. 
+Secondly the Core Application Framework LED module will be enabled in order to control the RGB LED on the Thingy91, and separate commands will be added to allow the LED to be turned on and off from the cloud interface. 
+The final task is to build upon these functionalities to implement a thermostat feature where a temperature threshold can be configured from the cloud interface, at which point the LED on the Thingy should show whether or not the measured temperature is above or below the set threshold. 
+
+## HW Requirements
+- Thingy91
+- nRF9160DK for programming and debugging (or another compatible programmer)
+- 10-pin SWD programming cable, like [this one](https://www.adafruit.com/product/1675)
+- 2x USB Micro-B cables (one for the Thingy91 and one for the nRF9160DK)
+
+## SW Requirements
+- nRF Connect for Desktop
+   - Toolchain manager (Windows and Mac only)
+   - LTE Link Monitor
+- Visual Studio Code (from here on referred to as VSCode)
+   - nRF Connect for VSCode extension
+- nRF Connect SDK v1.9.1 (installed through the Toolchain manager)
+
+For instructions on how to install these items, please follow the exercise [here](https://academy.nordicsemi.com/topic/exercise-1-1/)
+
+Workshop steps
+--------------
+
+Step 1 - Setting up the cloud_client sample
+
+1. In VSCode, click on 'Add an existing application' and select the NCS_INSTALL_FOLDER\v1.9.1\nrf\samples\nrf9160\cloud_client sample
+2. Find the "cloud_client" application in the application list, and click on 'Add Build Configuration'. 
+3. Select the board 'thingy91_nrf9160_ns'
+4. Check the 'Enable debug options' box
+5. Click on 'Build Configuration'
+6. Open the build output in the terminal window, and wait for the code to build
+7. Ensure that the nRF9160DK and the Thingy91 are connected as shown in the picture, and powered on
+8. Open the nRF Terminal window and connect to the comport of the Thingy91. 
+9. Flash the code into the Thingy91, and ensure that the boot message shows up in the nRF Terminal
+10. Open nRF Cloud
+11. If you haven't already, add your Thingy91 device to the cloud, and ensure that the SIM card is inserted into the Thingy91 and registered through the cloud
+12. Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
+13. Try to send a message from the cloud to the Thingy91 by entering a text in the terminal and pressing Send. Please note that the text must be JSON formatted. For the rest of this workshop we will use simple JSON commands on the form {"TYPE":"VALUE"}, where TYPE and VALUE can be any string. 
+14. Try to send a simple message like {"hi":"all"}, and verify that the message shows up in the nRF Terminal:
+
+    *I: Data received from cloud: {"hi":"all"}*
 
-nRF9160: Cloud client
-#####################
-
-.. contents::
-   :local:
-   :depth: 2
-
-This sample connects to, and communicates with a compatible cloud service using the respective cloud backend firmware library.
-The sample connects to the cloud service using cellular network (LTE) and publishes a custom string in intervals or upon a button trigger.
-
-Requirements
-************
-
-The sample supports the following development kits:
-
-.. table-from-rows:: /includes/sample_board_rows.txt
-   :header: heading
-   :sample-yaml-rows:
-
-Overview
-********
-
-The Cloud client sample demonstrates how the generic :ref:`cloud_api_readme` can be used to interface with multiple cloud backends.
-The current version of the sample supports the following libraries as cloud backends:
-
-*  :ref:`lib_nrf_cloud`
-*  :ref:`lib_aws_iot`
-*  :ref:`lib_azure_iot_hub`
-
-To swap between the supported libraries, change the option :kconfig:`CONFIG_CLOUD_BACKEND` to match the configuration string of a compatible cloud backend.
-The identification strings for the different cloud backends are listed in the following table:
-
-.. list-table::
-   :header-rows: 1
-   :align: center
-
-   * - Cloud Backend
-     - Configuration String
-   * - nRF Cloud
-     - "NRF_CLOUD"
-   * - AWS IoT
-     - "AWS_IOT"
-   * - Azure IoT Hub
-     - "AZURE_IOT_HUB"
-
-Setup
-*****
-
-For configuring the different cloud backends, refer to the documentation on :ref:`lib_nrf_cloud`, :ref:`lib_aws_iot`, and :ref:`lib_azure_iot_hub`.
-Each cloud backend has specific setup steps that must be executed before it can be used.
-
-.. note::
-   The nRF9160 DK and Thingy:91 are preprogrammed with the certificates required for a connection to `nRF Cloud`_.
-   No extra steps are required to use the Cloud client sample with nRF Cloud.
-
-
-Configurations
-**************
-
-The configurations used in the sample are listed below.
-They can be added to :file:`cloud_client/prj.conf`.
-
-.. options-from-kconfig::
-   :prefix: "This option "
-   :suffix: .
-   :show-type:
-   :only-visible:
-
-.. note::
-   To output data in the terminal window located in the `nRF Cloud`_ web interface, the data format must be in JSON format.
-
-.. note::
-   The sample sets the option :kconfig:`CONFIG_MQTT_KEEPALIVE` to the maximum allowed value that is specified by the configured cloud backend.
-   This is to limit the IP traffic between the device and the message broker of the cloud provider for supporting a low power sample.
-   In certain LTE networks, the NAT timeout can be considerably lower than the maximum allowed MQTT keepalive.
-   As a recommendation, and to prevent the likelihood of getting disconnected unexpectedly, set the option :kconfig:`CONFIG_MQTT_KEEPALIVE` to the lowest timeout limit (Maximum allowed MQTT keepalive and NAT timeout).
-
-Functionality and supported technologies
-****************************************
-
-The communication protocol supported by the sample depends on the cloud backend that is used.
-
-Functions
-=========
-The sample uses the following functions:
-
-* :c:func:`cloud_get_binding` : Binds to a desired cloud backend using an identifiable string.
-
-
-* :c:func:`cloud_init` : Sets up the cloud connection.
-
-
-* :c:func:`cloud_connect` : Connects to the cloud service.
-
-
-* :c:func:`cloud_ping` : Pings the cloud service.
-
-
-* :c:func:`cloud_input` : Retrieves data from the cloud service.
-
-
-* :c:func:`cloud_send` : Sends data to the cloud service.
-
-
-Cloud events used in the sample
-===============================
-The sample uses the following cloud events:
-
-* :c:enumerator:`CLOUD_EVT_CONNECTED` : Connected to the cloud service.
-
-
-* :c:enumerator:`CLOUD_EVT_READY` : Ready for cloud communication.
-
-
-* :c:enumerator:`CLOUD_EVT_DISCONNECTED` : Disconnected from the cloud service.
-
-
-* :c:enumerator:`CLOUD_EVT_DATA_RECEIVED` : Data received from the cloud service.
-
-.. note::
-   Not all functionalities present in the generic cloud API are used by the different cloud backends.
-
-Building and running
-********************
-
-.. |sample path| replace:: :file:`samples/nrf9160/cloud_client`
-.. include:: /includes/build_and_run.txt
-.. include:: /includes/spm.txt
-
-Testing
-=======
-
-Before testing, ensure that your device is already set up with your nRF Cloud account.
-After programming the sample to your device, test it by performing the following steps:
-
-1. Open a web browser and navigate to the correct device in `nRF Cloud`_.
-#. Connect the USB cable and power on or reset your device.
-#. Open a terminal emulator and observe that the sample has started.
-   Wait until the "I: CLOUD_EVT_READY" status appears in the terminal.
-
-   .. code-block:: console
-
-      I: Cloud client has started
-      I: Connecting to LTE network, this may take several minutes...
-      +CEREG: 2,"7725","0138E000",7,0,0,"11100000","11100000"
-      +CSCON: 1
-      +CEREG: 1,"7725","0138E000",7,,,"00000010","00000110"
-      I: Network registration status: Connected - home network
-      I: Connected to LTE network
-      I: Connecting to cloud
-      I: CLOUD_EVT_CONNECTED
-      I: CLOUD_EVT_DATA_RECEIVED
-      I: Data received from cloud: {"desired":{"pairing":{"state":"paired","topics":{"d2c":..
-      I: CLOUD_EVT_PAIR_DONE
-      I: CLOUD_EVT_READY
-
-    The device is now connected to nRF Cloud.
-
-#. Press button 1 on the device and observe that the following output is displayed in the terminal:
-
-   .. code-block:: console
-
-      I: Publishing message: {"state":{"reported":{"message":"Hello Internet of Things!"}}}
-      +CSCON: 1
-
-#. Observe that the following status appears in the terminal pane for the connected device in nRF Cloud:
-
-   .. code-block:: console
-
-      "Received": {
-         "state": {
-            "reported": {
-               "message": "Hello Internet of Things!"
-            }
-         }
-      }
-
-
-
-Dependencies
-************
-
-This sample uses the following |NCS| libraries and drivers:
-
-* :ref:`lib_nrf_cloud`
-* :ref:`lib_aws_iot`
-* :ref:`dk_buttons_and_leds_readme`
-* :ref:`cloud_api_readme`
-* :ref:`lte_lc_readme`
-
-It uses the following `sdk-nrfxlib`_ library:
-
-* :ref:`nrfxlib:nrf_modem`
-
-In addition, it uses the following sample:
-
-* :ref:`secure_partition_manager`
