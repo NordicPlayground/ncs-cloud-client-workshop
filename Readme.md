@@ -27,7 +27,7 @@ For instructions on how to install these items, please follow the exercise [here
 Workshop steps
 --------------
 
-Step 1 - Setting up the cloud_client sample
+### Step 1 - Setting up the cloud_client sample
 
 1. In VSCode, click on 'Add an existing application' and select the NCS_INSTALL_FOLDER\v1.9.1\nrf\samples\nrf9160\cloud_client sample
 2. Find the "cloud_client" application in the application list, and click on 'Add Build Configuration'. 
@@ -46,3 +46,58 @@ Step 1 - Setting up the cloud_client sample
 
     *I: Data received from cloud: {"hi":"all"}*
 
+### Step 2 - Integrate the BME680 environment sensor 
+In the following step we are going to enable the BME680 environment on the Thingy91, in order to read out the temperature. The sensor will be enabled through the Kconfig interface, and the code from the [BME680 Zephyr sample](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/zephyr/samples/sensor/bme680/README.html) should be copied into the cloud_client project to verify that the sensor works. 
+
+Open the Kconfig configurator in VSCode
+
+Search for 'bme680' in the search field.
+
+Enable 'Sensor Drivers' and 'BME680 sensor', and click 'Save to file'
+
+Verify that the following lines were added to your prj.conf file:
+```C
+CONFIG_SRAM_SIZE=128
+CONFIG_SRAM_BASE_ADDRESS=0x20020000
+CONFIG_SENSOR=y
+CONFIG_NRFX_TWIM2=y
+CONFIG_BME680=y
+```
+Add the following include to the top of your main.c file:
+```C
+#include <drivers/sensor.h>
+```
+
+Add the following variables just above the main() function, around line 276 of main.c:
+```C
+const struct device *dev;
+struct sensor_value temp, press, humidity, gas_res;
+```
+
+Add the following code to your main() function, just after the LOG_INF("Cloud client has started"); line:
+```C
+dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
+if(dev == 0) {
+   LOG_ERR("BME680 sensor not found");
+}
+```
+
+At the very end of the main function, add the following code (directly from the BME680 sample):
+```C
+while (1) {
+   k_sleep(K_MSEC(3000));
+
+   sensor_sample_fetch(dev);
+   sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+   sensor_channel_get(dev, SENSOR_CHAN_PRESS, &press);
+   sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &humidity);
+   sensor_channel_get(dev, SENSOR_CHAN_GAS_RES, &gas_res);
+
+   printf("T: %d.%06d; P: %d.%06d; H: %d.%06d; G: %d.%06d\n",
+         temp.val1, temp.val2, press.val1, press.val2,
+         humidity.val1, humidity.val2, gas_res.val1,
+         gas_res.val2);
+}
+```
+
+Build and flash the code, and verify that the environment readings are printed in the nRF Terminal. 
