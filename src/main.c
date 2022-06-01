@@ -226,21 +226,15 @@ static void modem_configure(void)
 	} else {
 		int err;
 
-#if defined(CONFIG_POWER_SAVING_MODE_ENABLE)
-		/* Requesting PSM before connecting allows the modem to inform
-		 * the network about our wish for certain PSM configuration
-		 * already in the connection procedure instead of in a separate
-		 * request after the connection is in place, which may be
-		 * rejected in some networks.
-		 */
-		err = lte_lc_psm_req(true);
+
+		err = lte_lc_psm_req(false);
 		if (err) {
 			LOG_ERR("Failed to set PSM parameters, error: %d",
 				err);
 		}
 
-		LOG_INF("PSM mode requested");
-#endif
+		LOG_INF("PSM disable requested");
+
 
 		err = lte_lc_modem_events_enable();
 		if (err) {
