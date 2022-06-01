@@ -38,28 +38,45 @@ static void read_temp_timer_fn(struct k_timer *timer)
 }
 static K_TIMER_DEFINE(read_temp_timer, read_temp_timer_fn, NULL);
 
+static void run_thermostat_work_fn(struct k_work *work);
+static K_WORK_DEFINE(run_thermostat_work, run_thermostat_work_fn);
+
+static void run_thermostat_timer_fn(struct k_timer *timer)
+{
+	k_work_submit(&run_thermostat_work);
+}
+static K_TIMER_DEFINE(run_thermostat_timer, run_thermostat_timer_fn, NULL);
+
 /* Flag to signify if the cloud client is connected or not connected to cloud,
  * used to abort/allow cloud publications.
  */
 static bool cloud_connected;
+
+#define THERMOSTAT_DISABLED	0x00FFFFFF
+static int thermostat_temperature_limit = THERMOSTAT_DISABLED;
 
 // Define various LED effects to be used by the application
 const struct led_effect led_effect_red = LED_EFFECT_LED_ON(LED_COLOR(255, 0, 0));
 const struct led_effect led_effect_blink_red = LED_EFFECT_LED_BLINK(100, LED_COLOR(255, 0, 0));
 const struct led_effect led_effect_pulse_red = LED_EFFECT_LED_BREATH(100, LED_COLOR(255,0,0));
 const struct led_effect led_effect_blue = LED_EFFECT_LED_ON(LED_COLOR(0, 255, 0));
-const struct led_effect led_effect_blink_blue = LED_EFFECT_LED_BLINK(100, LED_COLOR(0, 255, 0));
-const struct led_effect led_effect_pulse_blue = LED_EFFECT_LED_BREATH(100, LED_COLOR(0, 255, 0));
+const struct led_effect led_effect_blink_blue = LED_EFFECT_LED_BLINK(100, LED_COLOR(0, 0, 255));
+const struct led_effect led_effect_pulse_blue = LED_EFFECT_LED_BREATH(100, LED_COLOR(0, 0, 255));
 const struct led_effect led_effect_off = LED_EFFECT_LED_OFF();
 
 // This function is used to send LED events to the LED module, in order to set the LED in different states
 static void send_led_event(const struct led_effect *effect)
 {
-	struct led_event *event = new_led_event();
+	static struct led_effect *current_led_effect = 0;
+	if(effect != current_led_effect) {
+		struct led_event *event = new_led_event();
 
-	event->led_id = 0;
-	event->led_effect = effect;
-	EVENT_SUBMIT(event);
+		event->led_id = 0;
+		event->led_effect = effect;
+		EVENT_SUBMIT(event);
+
+		current_led_effect = effect;
+	}
 }
 
 static void connect_work_fn(struct k_work *work)
@@ -186,6 +203,41 @@ bool decode_cloud_message(const struct cloud_msg *message, const uint8_t *target
 	return strcmp(type_string, target_type_str) == 0 && strcmp(value_string, target_value_str) == 0;
 }
 
+bool decode_cloud_thermostat_message(const struct cloud_msg *message, int *out_temperature_limit)
+{
+	static uint8_t type_string[64];
+	static uint8_t value_string[64];
+	int type_index = 0, value_index = 0, delimiter_counter = 0;
+
+	// Go through the cloud message looking for the " delimiters, and moving the TYPE and VALUE string into temporary variables
+	for(int i = 0; i < message->len; i++) {
+		if(message->buf[i] == '\"') delimiter_counter++;
+		else {
+			switch(delimiter_counter) {
+				case 0: break; // Do nothing, still waiting for the first delimiter
+				case 1:
+					type_string[type_index++] = message->buf[i]; // Copy the type string
+					break;
+				case 2: break; // Do nothing, waiting for the third delimiter
+				case 3:
+					// Copy the value string
+					value_string[value_index++] = message->buf[i];
+					break;
+				default: break; // If the delimiter is 4 or more we are at the end of the message
+			}
+		}
+	}
+	// Add null termination to the strings
+	type_string[type_index] = 0;
+	value_string[value_index] = 0;
+
+	if(strcmp(type_string, "thermostat") != 0) return false;
+
+	*out_temperature_limit = atoi(value_string);
+
+	return true;
+}
+
 void cloud_event_handler(const struct cloud_backend *const backend,
 			 const struct cloud_event *const evt,
 			 void *user_data)
@@ -239,7 +291,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 			k_work_submit(&read_temp_work);
 		} else if(decode_cloud_message(&evt->data.msg, "temp", "timer")) {
 			LOG_INF("Starting continuous temperature readouts");
-			// Start the temperature read timer with an interval of 30 seconds
+			// Start the temperature read timer with an interval of 30 seconds 
 			k_timer_start(&read_temp_timer, K_MSEC(0), K_MSEC(30000));
 		} else if(decode_cloud_message(&evt->data.msg, "temp", "stop")) {
 			LOG_INF("Stopping continuous temperature readouts");
@@ -251,6 +303,16 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		} else if(decode_cloud_message(&evt->data.msg, "led", "off")) {
 			LOG_INF("Turning off LED");
 			send_led_event(&led_effect_off);
+		} else if(decode_cloud_thermostat_message(&evt->data.msg, &thermostat_temperature_limit)) {
+			LOG_INF("Thermostat enabled. Target temperature %iC", thermostat_temperature_limit);
+			// Only accept thermostat temperature limits in the -40 to 100C range
+			if(thermostat_temperature_limit >= -40 && thermostat_temperature_limit <= 100) {
+				k_timer_start(&run_thermostat_timer, K_MSEC(0), K_MSEC(1000));
+			} else {
+				thermostat_temperature_limit = THERMOSTAT_DISABLED;
+				k_timer_stop(&run_thermostat_timer);
+				send_led_event(&led_effect_off);
+			}
 		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
@@ -439,6 +501,24 @@ static void read_temp_work_fn(struct k_work *work)
 	err = cloud_send(cloud_backend, &msg);
 	if (err) {
 		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+
+static void run_thermostat_work_fn(struct k_work *work)
+{
+	// Read the temperature using the sensor API
+	sensor_sample_fetch(dev);
+	sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+
+	// If the thermostat feature is enabled, check the temperature and see if it is below or above the limit
+	if(thermostat_temperature_limit != THERMOSTAT_DISABLED) {
+		if(temp.val1 > thermostat_temperature_limit) {
+			// If the temperature is higher than the limit, have the LED pulse red
+			send_led_event(&led_effect_pulse_red);
+		} else {
+			// If the temperature is lower or equal to the limit, have the LED pulse blue
+			send_led_event(&led_effect_pulse_blue);
+		}
 	}
 }
 
