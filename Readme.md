@@ -118,6 +118,7 @@ Build and flash the code, and verify that the environment readings are printed i
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_env_readings.JPG" width="400">
 
 ### Step 3 - Add a function to decode messages from the cloud
+In this step a function will be added to decode the messages received from the cloud, and if the {"temp":"read"} command is received a message will be printed to the log.
 
 Add the following function somewhere above the *void cloud_event_handler(const struct cloud_backend * const backend, const struct cloud_event * const evt, void * user_data)* function in main.c:
 
@@ -167,3 +168,98 @@ if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
 Build and flash the code, and verify that you get the following nRF Terminal output when sending the {"temp":"read"} command from the cloud:
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s3_temp_command_received.JPG" width = "400">
+
+### Step 4 - Send a temperature update with timestamp to the cloud
+For this step a function will be added to send a temperature update to the cloud with a timestamp, following the standard format for nRF Cloud temperature samples.
+When the {"temp":"read"} command is received the function will be triggered, sending a temperature reading immediately. 
+The DATE_TIME library will be enabled to facilitate the reading of an accurate time and date. 
+The loop in main printing out environment information every 3 seconds will be removed, as this code was only added for testing purposes. 
+
+Start by opening the Kconfig configurator. Search for 'date_time', and enable the Date time library. Click 'Save to file'. 
+After doing this *CONFIG_DATE_TIME=y* should be added to the prj.conf file (it is also possible to simply add this line manually to prj.conf, without using the Kconfig configurator)
+
+Add the following include to the top of main.c:
+```C
+#include <date_time.h>
+```
+
+It is not recommended to run a lot of code directly from an event handler, since event handlers are often running in interrupt context. From interrupt context there are many drivers and libraries that are unavailable (or unsafe), and you also risk blocking other interrupts in the system. 
+To avoid this issue it is possible to register a work item, which will be triggered from the event handler (by using k_work_submit(..)), but where the actual work function will be run from the thread context. 
+
+To implement this, start by declaring a work function and a work item by adding the following code at the top of main.c (below *static K_SEM_DEFINE(lte_connected, 0, 1);* ):
+```C
+static void read_temp_work_fn(struct k_work *work);
+static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);
+```
+
+Just above main() in main.c add the following function definition. This is the work function that will be triggered whenever the temperature should be sampled and sent to the cloud:
+```C
+#define CLOUD_TEMPERATURE_UPDATE_STRING "{\n\"appId\": \"TEMP\",\n\"messageType\": \"DATA\",\n\"data\": \"%d.%06d\",\n\"ts\": %d%09d\n}"
+
+static void read_temp_work_fn(struct k_work *work)
+{
+	int err;
+	static uint8_t cloud_temp_message[256];
+	int64_t unix_time = 0;
+
+	// Read the current time using the date_time library
+	err = date_time_now(&unix_time);
+	if (err) {
+		LOG_ERR("Failed to get time: %d", err);
+		return;
+	}
+
+	// Read the temperature using the sensor API
+	sensor_sample_fetch(dev);
+	sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+
+	// Prepare the temperature update by combining the updated temperature sample and the current datetime with the static JSON string defined above
+	// Since the sprintf function in Zephyr doesn't support conversion of 64-bit values, the datetime conversion is split in two
+	sprintf(cloud_temp_message, CLOUD_TEMPERATURE_UPDATE_STRING, temp.val1, temp.val2, 
+			(uint32_t)(unix_time / 1000000000), (uint32_t)(unix_time % 1000000000));
+	LOG_INF("Publishing message: %s", log_strdup(cloud_temp_message));
+
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.buf = cloud_temp_message,
+		.len = strlen(cloud_temp_message)
+	};
+
+	if (strcmp(CONFIG_CLOUD_BACKEND, "NRF_CLOUD") == 0) {
+		msg.endpoint.type = CLOUD_EP_MSG;
+	} else {
+		msg.endpoint.type = CLOUD_EP_STATE;
+	}
+
+	err = cloud_send(cloud_backend, &msg);
+	if (err) {
+		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+```
+
+In order to ensure that read_temp_work_fn(..) is called when the {"temp":"read"} command is received, enter the following code line inside the *cloud_event_handler(..)* function, just after the *LOG_INF("Temperature read command received");* line:
+```C
+k_work_submit(&read_temp_work);
+```
+The entire *CLOUD_EVT_DATA_RECEIVED* case should now look like this:
+```C
+case CLOUD_EVT_DATA_RECEIVED:
+	LOG_INF("CLOUD_EVT_DATA_RECEIVED");
+	LOG_INF("Data received from cloud: %.*s",
+		evt->data.msg.len,
+		log_strdup(evt->data.msg.buf));
+
+	// Upon receiving the message {"temp":"read"} from the cloud, initiate a temperature reading
+	if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
+		LOG_INF("Temperature read command received");
+		k_work_submit(&read_temp_work);
+	}
+	break;
+```
+
+Remove the while loop that you added ad the end of main.c in an earlier step, to avoid spamming the log with environment readings
+
+Build and flash the code. Once the Thingy91 connects to the cloud again send the {"temp":"read"} command from the cloud, and verify that you get a temperature update in return:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s4_temp_in_cloud.JPG" width="500">
