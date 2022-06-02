@@ -35,11 +35,11 @@ Workshop steps
 4. Check the 'Enable debug options' box
 5. Click on 'Build Configuration'
 6. Open the build output in the terminal window, and wait for the code to build
-7. Ensure that the nRF9160DK and the Thingy91 are connected as shown in the picture, and powered on
-8. Open the nRF Terminal window and connect to the comport of the Thingy91. 
+7. Ensure that the nRF9160DK and the Thingy91 are connected as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#updating-firmware-through-external-debug-probe). Also make sure they are powered on
+8. Open the nRF Terminal window and connect to the comport of the Thingy91
 9. Flash the code into the Thingy91, and ensure that the boot message shows up in the nRF Terminal
 10. Open nRF Cloud
-11. If you haven't already, add your Thingy91 device to the cloud, and ensure that the SIM card is inserted into the Thingy91 and registered through the cloud
+11. Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account)
 12. Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
 13. Try to send a message from the cloud to the Thingy91 by entering a text in the terminal and pressing Send. Please note that the text must be JSON formatted. For the rest of this workshop we will use simple JSON commands on the form {"TYPE":"VALUE"}, where TYPE and VALUE can be any string. 
 14. Try to send a simple message like {"hi":"all"}, and verify that the message shows up in the nRF Terminal:
