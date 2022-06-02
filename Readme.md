@@ -465,4 +465,14 @@ else if(decode_cloud_message(&evt->data.msg, "led", "blink red")) {
 
 Build and flash the code. After the device has connected to the cloud verify that the LED can be controlled by sending the {"led":"blink red"} and {"led":"off"} commands. 
 
+### Step 9 - Add a thermostat function
+In order to expand on the functionality introduced in the previous steps, and combine the temperature sensor, LED control and cloud interface elements into one feature, the goal of this step is to implement a simple thermostat function.
+A new command should be added introduced allowing a threshold temperature to be configured through the cloud. As an example, if the command {"thermostat":"28"} is set, the threshold should be set to 28 degrees. 
+Then whenever the temperature sensor is read the temperature should be compared to the threshold value. If the actual temperature is higher the LED should be set to blink red, and if the temperature is lower it should blink blue. 
 
+This is a free form exercise, and the code needed to complete the step will not be provided. 
+
+### Bonus steps
+In the unlikely event that all the steps above have been completed, with time to spare, here are some suggestions for further improvements
+- To save cloud bandwidth, add some code to the *read_temp_work_fn(..)* function to have the function skip the cloud update unless the temperature has changed more than a specific amount (1.0C for instance). 
+- Add support for the remaining environment readings supported by the BME680 sensor, such as humidity and air pressure
