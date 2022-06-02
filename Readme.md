@@ -263,3 +263,53 @@ Remove the while loop that you added ad the end of main.c in an earlier step, to
 Build and flash the code. Once the Thingy91 connects to the cloud again send the {"temp":"read"} command from the cloud, and verify that you get a temperature update in return:
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s4_temp_in_cloud.JPG" width="500">
+
+### Step 5 - Update device status in the cloud
+nRF Cloud allows devices to send a device status message, which gives some information about the device to the cloud interface. In order to properly display temperature data in the cloud it is necessary to enable temperature in the ui configuration part of the device status message, and this step will handle that. 
+
+At the top of main.c, add the following include folder:
+```C
+#include "nrf_cloud_codec.h"
+```
+
+Add the following code above the *bool decode_cloud_message(..)* function in main.c:
+```C
+// In order for the cloud to display temperature data in a graph it is necessary to send a device status message where the 
+// temperature flag is set to 1 in the ui_info field of the device_status structure
+static void set_device_status_work_fn(struct k_work *work)
+{
+	int err;
+	static struct nrf_cloud_svc_info_ui ui_info = {.temperature = 1};
+	static struct nrf_cloud_svc_info svc_info = {.ui = &ui_info, .fota = 0};
+	static struct nrf_cloud_device_status dev_status = {.svc = &svc_info, .modem = 0};
+	static struct nrf_cloud_data status_cloud_data;
+
+	err = nrf_cloud_device_status_encode(&dev_status, &status_cloud_data, true);
+	if(err) {
+		LOG_ERR("Error generating cloud device status message: %i", err);
+		return;
+	}
+
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.buf = (char *)status_cloud_data.ptr,
+		.len = status_cloud_data.len,
+		.endpoint.type = CLOUD_EP_STATE
+	};	
+
+	err = cloud_send(cloud_backend, &msg);
+	if (err) {
+		LOG_ERR("cloud_send failed, error: %d", err);
+	}
+}
+
+K_WORK_DEFINE(set_device_status_work, set_device_status_work_fn);
+```
+
+The function defined above should be called as soon as the cloud is connected and ready. Inside the cloud_event_handler(..) function in main.c, at the end of the CLOUD_EVT_READY case, add the following code:
+```C
+// When the cloud is ready the device status can be sent to the cloud, to enable the cloud temperature UI
+k_work_submit(&set_device_status_work);
+```
+
+Build and flash the code again. Try to read the temperature after the device has connected to the cloud, and verify that a temperature graph window will appear in the cloud. If the temperature is read several times the graph should reflect this. 
