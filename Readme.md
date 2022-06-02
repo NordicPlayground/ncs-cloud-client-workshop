@@ -421,3 +421,48 @@ Insert the following code in the overlay file:
 ```
 
 Now run a pristine build, either by pressing the button in the popup box, or by clicking the 'Pristine Build' button in the Actions menu. 
+
+### Step 8 - Add commands to turn on and off the LED from the cloud
+In the following step two additional commands will be added to the application, allowing the LED to be turned on or off by sending direct commands from the cloud. 
+
+Add the following include to the top of main.c:
+```C
+#include <caf/events/led_event.h>
+```
+
+The LED module uses LED events to control the LED, by defining different LED effects that can be run on the LED. These effects make it easy to set the LED to different colors, or to have the LED blink or pulse between two colors automatically. To set up some standard LED effects, and add a function for sending a new LED event to the LED module, add the following code to main.c, just below the *static bool cloud_connected;* line:
+```C
+// Define various LED effects to be used by the application
+const struct led_effect led_effect_red = LED_EFFECT_LED_ON(LED_COLOR(255, 0, 0));
+const struct led_effect led_effect_blink_red = LED_EFFECT_LED_BLINK(100, LED_COLOR(255, 0, 0));
+const struct led_effect led_effect_pulse_red = LED_EFFECT_LED_BREATH(100, LED_COLOR(255,0,0));
+const struct led_effect led_effect_blue = LED_EFFECT_LED_ON(LED_COLOR(0, 0, 255));
+const struct led_effect led_effect_blink_blue = LED_EFFECT_LED_BLINK(100, LED_COLOR(0, 0, 255));
+const struct led_effect led_effect_pulse_blue = LED_EFFECT_LED_BREATH(100, LED_COLOR(0, 0, 255));
+const struct led_effect led_effect_off = LED_EFFECT_LED_OFF();
+
+// This function is used to send LED events to the LED module, in order to set the LED in different states
+static void send_led_event(const struct led_effect *effect)
+{
+	struct led_event *event = new_led_event();
+
+	event->led_id = 0;
+	event->led_effect = effect;
+	EVENT_SUBMIT(event);
+}
+```
+
+In order to allow the LED to be controlled from the cloud interface, add the following code at the end of the *CLOUD_EVT_DATA_RECEIVED* case in the *cloud_event_handler(..)* function:
+```C
+else if(decode_cloud_message(&evt->data.msg, "led", "blink red")) {
+	LOG_INF("Setting LED to blink red");
+	send_led_event(&led_effect_blink_red);
+} else if(decode_cloud_message(&evt->data.msg, "led", "off")) {
+	LOG_INF("Turning off LED");
+	send_led_event(&led_effect_off);
+}
+```
+
+Build and flash the code. After the device has connected to the cloud verify that the LED can be controlled by sending the {"led":"blink red"} and {"led":"off"} commands. 
+
+
