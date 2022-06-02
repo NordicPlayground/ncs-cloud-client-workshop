@@ -36,24 +36,35 @@ Workshop steps
 5. Click on 'Build Configuration'
 6. Open the build output in the terminal window, and wait for the code to build
 7. Ensure that the nRF9160DK and the Thingy91 are connected as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#updating-firmware-through-external-debug-probe). Also make sure they are powered on
-8. Open the nRF Terminal window and connect to the comport of the Thingy91
-9. Flash the code into the Thingy91, and ensure that the boot message shows up in the nRF Terminal
-10. Open nRF Cloud
-11. Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account)
-12. Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
-13. Try to send a message from the cloud to the Thingy91 by entering a text in the terminal and pressing Send. Please note that the text must be JSON formatted. For the rest of this workshop we will use simple JSON commands on the form {"TYPE":"VALUE"}, where TYPE and VALUE can be any string. 
-14. Try to send a simple message like {"hi":"all"}, and verify that the message shows up in the nRF Terminal:
+8. Open the nRF Terminal window and connect to the comport of the Thingy91. Make sure to avoid connecting to one of the comports set up by the nRF9160DK:
 
-    *I: Data received from cloud: {"hi":"all"}*
+   <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_comports_to_avoid.JPG" width="300">
+10. Flash the code into the Thingy91, and ensure that the boot message shows up in the nRF Terminal
+
+    <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_boot.JPG" width="400">
+11. Open [https://nrfcloud.com/](https://nrfcloud.com/), and create a user if you haven't already done so
+12. Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account)
+13. Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
+
+    <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_cloud_terminal.jpg" width="800">
+13. Try to send a message from the cloud to the Thingy91 by entering a text in the terminal and pressing Send. Please note that the text must be JSON formatted. For the rest of this workshop we will use simple JSON commands on the form {"TYPE":"VALUE"}, where TYPE and VALUE can be any string. 
+    As an example you can send {"message":"hi"}
+14. Verify that the message shows up in the nRF Terminal:
+
+    *I: Data received from cloud: {"message":"hi"}*
 
 ### Step 2 - Integrate the BME680 environment sensor 
-In the following step we are going to enable the BME680 environment on the Thingy91, in order to read out the temperature. The sensor will be enabled through the Kconfig interface, and the code from the [BME680 Zephyr sample](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/zephyr/samples/sensor/bme680/README.html) should be copied into the cloud_client project to verify that the sensor works. 
+In the following step we are going to enable the BME680 environment on the Thingy91, in order to read out the temperature. The sensor will be enabled through the Kconfig interface, and the code from the [BME680 Zephyr sample](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/zephyr/samples/sensor/bme680/README.html) will be copied into the cloud_client project to verify that the sensor works. 
 
 Open the Kconfig configurator in VSCode
 
-Search for 'bme680' in the search field.
+Search for 'bme680' in the search field:
 
-Enable 'Sensor Drivers' and 'BME680 sensor', and click 'Save to file'
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_kconfig_bme680.JPG" width="800">
+
+Enable 'Sensor Drivers' and 'BME680 sensor', and click 'Save to file':
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_kconfig_enable_save_to_file.JPG" width="800">
 
 Verify that the following lines were added to your prj.conf file:
 ```C
@@ -74,7 +85,7 @@ const struct device *dev;
 struct sensor_value temp, press, humidity, gas_res;
 ```
 
-Add the following code to your main() function, just after the LOG_INF("Cloud client has started"); line:
+Add the following code to your main() function, just after the *LOG_INF("Cloud client has started");* line:
 ```C
 dev = device_get_binding(DT_LABEL(DT_INST(0, bosch_bme680)));
 if(dev == 0) {
@@ -82,7 +93,7 @@ if(dev == 0) {
 }
 ```
 
-At the very end of the main function, add the following code (directly from the BME680 sample):
+At the very end of the main function, after *k_work_schedule(&connect_work, K_NO_WAIT);*, add the following code (directly from the BME680 sample):
 ```C
 while (1) {
    k_sleep(K_MSEC(3000));
@@ -100,4 +111,6 @@ while (1) {
 }
 ```
 
-Build and flash the code, and verify that the environment readings are printed in the nRF Terminal. 
+Build and flash the code, and verify that the environment readings are printed in the nRF Terminal:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_env_readings.JPG" width="400">
