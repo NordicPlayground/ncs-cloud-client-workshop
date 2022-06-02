@@ -58,6 +58,8 @@ In the following step we are going to enable the BME680 environment on the Thing
 
 Open the Kconfig configurator in VSCode
 
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_kconfig.jpg" width="300">
+
 Search for 'bme680' in the search field:
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_kconfig_bme680.JPG" width="800">
@@ -114,3 +116,54 @@ while (1) {
 Build and flash the code, and verify that the environment readings are printed in the nRF Terminal:
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_env_readings.JPG" width="400">
+
+### Step 3 - Add a function to decode messages from the cloud
+
+Add the following function somewhere above the *void cloud_event_handler(const struct cloud_backend * const backend, const struct cloud_event * const evt, void * user_data)* function in main.c:
+
+```C
+// This function expects a cloud message on the format {"TYPE":"VALUE"}, where TYPE and VALUE are strings
+// If TYPE mathces target_type_str, and VALUE matches target_value_str, the function returns true
+bool decode_cloud_message(const struct cloud_msg *message, const uint8_t *target_type_str, const uint8_t *target_value_str)
+{
+	static uint8_t type_string[64];
+	static uint8_t value_string[64];
+	int type_index = 0, value_index = 0, delimiter_counter = 0;
+
+	// Go through the cloud message looking for the " delimiters, and moving the TYPE and VALUE string into temporary variables
+	for(int i = 0; i < message->len; i++) {
+		if(message->buf[i] == '\"') delimiter_counter++;
+		else {
+			switch(delimiter_counter) {
+				case 0: break; // Do nothing, still waiting for the first delimiter
+				case 1:
+					type_string[type_index++] = message->buf[i]; // Copy the type string
+					break;
+				case 2: break; // Do nothing, waiting for the third delimiter
+				case 3:
+					// Copy the value string
+					value_string[value_index++] = message->buf[i];
+					break;
+				default: break; // If the delimiter is 4 or more we are at the end of the message
+			}
+		}
+	}
+	// Add null termination to the strings
+	type_string[type_index] = 0;
+	value_string[value_index] = 0;
+
+	// Return true if both the type and value strings match
+	return strcmp(type_string, target_type_str) == 0 && strcmp(value_string, target_value_str) == 0;
+}
+```
+Demonstrate that the *decode_cloud_message(..)* function works, by adding the following code inside the *cloud_event_handler(..)* function, inside the *CLOUD_EVT_DATA_RECEIVED* switch case:
+
+```C
+// Upon receiving the message {"temp":"read"} from the cloud, initiate a temperature reading
+if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
+   LOG_INF("Temperature read command received");
+}
+```
+Build and flash the code, and verify that you get the following nRF Terminal output when sending the {"temp":"read"} command from the cloud:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s3_temp_command_received.JPG" width = "400">
