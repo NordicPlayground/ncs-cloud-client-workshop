@@ -355,5 +355,69 @@ case CLOUD_EVT_DATA_RECEIVED:
 
 Build and flash the code. Verify that you can start regular temperature readings by sending {"temp":"timer"}, and stop them again by sending {"temp":"stop"}
 
+### Step 7 - Control the RGB LED on the Thingy91 using the CAF module
+For this step the Core Application Framework (CAF) LED module will be enabled in order to control the RGB LED on the Thingy91. 
 
+Start by adding the following lines to the bottom of the prj.conf file:
+```C
+CONFIG_CAF=y
+CONFIG_CAF_LEDS=y
+CONFIG_PWM=y
+CONFIG_LED=y
+CONFIG_LED_PWM=y 
+```
 
+Add the following include to the top of main.c:
+```C
+#include <event_manager.h>
+```
+
+Towards the top of main.c, just below the *LOG_MODULE_REGISTER(cloud_client, CONFIG_CLOUD_CLIENT_LOG_LEVEL);* line, add the following:
+```C
+#define MODULE main
+#include <caf/events/module_state_event.h>
+```
+
+The Core Application Framework is based around a module called the Event Manager, which provides a generic event framework for sending status information between different modules in the application. To initialize the event manager add the following code to the main() function in main.c, just below the *LOG_INF("Cloud client has started");* line:
+```C
+event_manager_init();
+module_set_state(MODULE_STATE_READY);
+```
+
+In order for the CAF LED module to work the LED pins need to be described in the device tree. The Thingy91 board files does not include these definitions, which means they have to be added as a device tree overlay. 
+
+Start by expanding the 'Input files' section in the build overview, and click on the 'No overlay files, Click to create one' button. 
+A message box requesting you to run a pristine build will show up, to save some time don't click this yet. 
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s7_add_overlay.JPG" width="200">
+
+The new overlay file should show up in the 'Input files' section. Double click on the file to open it:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s7_open_overlay_file.JPG" width="200">
+
+Insert the following code in the overlay file:
+```C
+/ {
+	pwmleds0 {
+		compatible = "pwm-leds";
+		status = "okay";
+		pwm_led0: led_pwm_0 {
+			status = "okay";
+			pwms = <&pwm0 29>;
+			label = "LED0 red";
+		};
+		pwm_led1: led_pwm_1 {
+			status = "okay";
+			pwms = <&pwm0 30>;
+			label = "LED0 green";
+		};
+		pwm_led2: led_pwm_2 {
+			status = "okay";
+			pwms = <&pwm0 31>;
+			label = "LED0 blue";
+		};
+	};
+};   
+```
+
+Now run a pristine build, either by pressing the button in the popup box, or by clicking the 'Pristine Build' button in the Actions menu. 
