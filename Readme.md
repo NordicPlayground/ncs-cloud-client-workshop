@@ -313,3 +313,47 @@ k_work_submit(&set_device_status_work);
 ```
 
 Build and flash the code again. Try to read the temperature after the device has connected to the cloud, and verify that a temperature graph window will appear in the cloud. If the temperature is read several times the graph should reflect this. 
+
+### Step 6 - Add a function to read the temperature at regular intervals
+In order to better utilize the graph functionality in nRF Cloud a timer will be added to read out the temperature automatically every 30 seconds. 
+Two new cloud commands will be added in order to allow the user to enabled or disable automatic temperature readings through the cloud interface. 
+To start the timer send {"temp":"timer"}. To stop the timer send {"temp":"stop"}
+
+First a Zephyr timer will be defined in order to trigger a callback at regular intervals. The timer callback function will trigger the temperature read function that we implemented in an earlier step. 
+Paste the following code in main.c, towards the top of the file, just below *static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);*:
+```C
+static void read_temp_timer_fn(struct k_timer *timer)
+{
+	k_work_submit(&read_temp_work);
+}
+static K_TIMER_DEFINE(read_temp_timer, read_temp_timer_fn, NULL);
+```
+
+In the *cloud_event_handler(..)* function, replace the current *CLOUD_EVT_DATA_RECEIVED* case with the following, to respond to two more commands from the cloud:
+```C
+case CLOUD_EVT_DATA_RECEIVED:
+	LOG_INF("CLOUD_EVT_DATA_RECEIVED");
+	LOG_INF("Data received from cloud: %.*s",
+		evt->data.msg.len,
+		log_strdup(evt->data.msg.buf));
+
+	// Upon receiving the message {"temp":"read"} from the cloud, initiate a temperature reading
+	if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
+		LOG_INF("Temperature read command received");
+		k_work_submit(&read_temp_work);
+	} else if(decode_cloud_message(&evt->data.msg, "temp", "timer")) {
+		LOG_INF("Starting continuous temperature readouts");
+		// Start the temperature read timer with an interval of 30 seconds
+		k_timer_start(&read_temp_timer, K_MSEC(0), K_MSEC(30000));
+	} else if(decode_cloud_message(&evt->data.msg, "temp", "stop")) {
+		LOG_INF("Stopping continuous temperature readouts");
+		// Stop the temperature read timer
+		k_timer_stop(&read_temp_timer);
+	}
+	break;
+```
+
+Build and flash the code. Verify that you can start regular temperature readings by sending {"temp":"timer"}, and stop them again by sending {"temp":"stop"}
+
+
+
