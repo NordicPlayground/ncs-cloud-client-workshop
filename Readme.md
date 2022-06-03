@@ -24,36 +24,62 @@ The final task is to build upon these functionalities to implement a thermostat 
 
 For instructions on how to install these items, please follow the exercise [here](https://academy.nordicsemi.com/topic/exercise-1-1/)
 
-Workshop steps
---------------
+## Workshop steps
 
 ### Step 1 - Setting up the cloud_client sample
+-----------------------------------------------
 
-1. In VSCode, click on 'Add an existing application' and select the NCS_INSTALL_FOLDER\v1.9.1\nrf\samples\nrf9160\cloud_client sample
-2. Find the "cloud_client" application in the application list, and click on 'Add Build Configuration'. 
-3. Select the board 'thingy91_nrf9160_ns'
-4. Check the 'Enable debug options' box
-5. Click on 'Build Configuration'
-6. Open the build output in the terminal window, and wait for the code to build
-7. Ensure that the nRF9160DK and the Thingy91 are connected as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#updating-firmware-through-external-debug-probe). Also make sure they are powered on
-8. Open the nRF Terminal window and connect to the comport of the Thingy91. Make sure to avoid connecting to one of the comports set up by the nRF9160DK:
+In VSCode, click on 'Add an existing application' and select the NCS_INSTALL_FOLDER\v1.9.1\nrf\samples\nrf9160\cloud_client sample
 
-   <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_comports_to_avoid.JPG" width="300">
-10. Flash the code into the Thingy91, and ensure that the boot message shows up in the nRF Terminal
+Find the "cloud_client" application in the application list, and click on 'Add Build Configuration'. 
 
-    <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_boot.JPG" width="400">
-11. Open [https://nrfcloud.com/](https://nrfcloud.com/), and create a user if you haven't already done so
-12. Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account)
-13. Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
+Select the board 'thingy91_nrf9160_ns'
 
-    <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_cloud_terminal.jpg" width="800">
-13. Try to send a message from the cloud to the Thingy91 by entering a text in the terminal and pressing Send. Please note that the text must be JSON formatted. For the rest of this workshop we will use simple JSON commands on the form {"TYPE":"VALUE"}, where TYPE and VALUE can be any string. 
-    As an example you can send {"message":"hi"}
-14. Verify that the message shows up in the nRF Terminal:
+Check the 'Enable debug options' box
 
-    *I: Data received from cloud: {"message":"hi"}*
+Click on 'Build Configuration'
+Open the build output in the terminal window, and wait for the code to build
+
+Ensure that the nRF9160DK and the Thingy91 are connected as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#updating-firmware-through-external-debug-probe). Also make sure they are powered on
+
+To show log output from the Thingy91 it is necessary to connect to one of two virtual CDC comports enumerated by the Thingy when it is connected over USB. The nRF9160DK will also enumerate various comports, and the easiest way to find out which comport is for log output from the Thingy you can use the LTE Link Monitor app available through nRF Connect for Desktop. Simply connect to the Thingy91 from the LTE Link Monitor, and check which comport the link monitor opens:
+   
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_lte_link_monitor.JPG" width="500">
+
+Close the LTE Link Monitor, and go back to VSCode. Select the nRF Terminal, and click on the 'Start Terminal With New Configuration' button:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_start_terminal.JPG" width="600">
+
+When prompted to select connection mode at the top of VSCode, select 'Serial Port'. 
+When prompted to select the comport select the comport that was used by the LTE Link Monitor earlier. 
+When prompted to choose configuration select '115200 8n1'. 
+  
+Flash the code into the Thingy91, and ensure that the boot message shows up in the nRF Terminal:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_boot.JPG" width="400">
+
+In the build overview in VSCode, expand the 'Application' group and double click the main.c file to open it:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_select_main.JPG" width="200">
+
+It is advantageous to disable PSM mode in the LTE modem during development, as it will greatly reduce the latency when communicating with the cloud. To do this navigate to line 229 in main.c. Delete the *#if defined(CONFIG_POWER_SAVING_MODE_ENABLE)* line, and the corresponding *#endif* on line 243. 
+Change the *err = lte_lc_psm_req(true);* line to *err = lte_lc_psm_req(false);* in order to disable PSM mode. 
+
+Open [https://nrfcloud.com/](https://nrfcloud.com/), and create a user if you haven't already done so
+Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account)
+
+Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_cloud_terminal.jpg" width="800">
+
+Try to send a message from the cloud to the Thingy91 by entering a text in the terminal and pressing Send. Please note that the text must be JSON formatted. For the rest of this workshop we will use simple JSON commands on the form {"TYPE":"VALUE"}, where TYPE and VALUE can be any string. As an example you can send {"message":"hi"}
+
+Verify that the message shows up in the nRF Terminal:
+
+*I: Data received from cloud: {"message":"hi"}*
 
 ### Step 2 - Integrate the BME680 environment sensor 
+----------------------------------------------------
 In the following step we are going to enable the BME680 environment on the Thingy91, in order to read out the temperature. The sensor will be enabled through the Kconfig interface, and the code from the [BME680 Zephyr sample](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/zephyr/samples/sensor/bme680/README.html) will be copied into the cloud_client project to verify that the sensor works. 
 
 Open the Kconfig configurator in VSCode
@@ -118,6 +144,7 @@ Build and flash the code, and verify that the environment readings are printed i
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_env_readings.JPG" width="400">
 
 ### Step 3 - Add a function to decode messages from the cloud
+-------------------------------------------------------------
 In this step a function will be added to decode the messages received from the cloud, and if the {"temp":"read"} command is received a message will be printed to the log.
 
 Add the following function somewhere above the *void cloud_event_handler(const struct cloud_backend * const backend, const struct cloud_event * const evt, void * user_data)* function in main.c:
@@ -170,6 +197,7 @@ Build and flash the code, and verify that you get the following nRF Terminal out
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s3_temp_command_received.JPG" width = "400">
 
 ### Step 4 - Send a temperature update with timestamp to the cloud
+------------------------------------------------------------------
 For this step a function will be added to send a temperature update to the cloud with a timestamp, following the standard format for nRF Cloud temperature samples.
 When the {"temp":"read"} command is received the function will be triggered, sending a temperature reading immediately. 
 The DATE_TIME library will be enabled to facilitate the reading of an accurate time and date. 
@@ -265,6 +293,7 @@ Build and flash the code. Once the Thingy91 connects to the cloud again send the
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s4_temp_in_cloud.JPG" width="500">
 
 ### Step 5 - Update device status in the cloud
+----------------------------------------------
 nRF Cloud allows devices to send a device status message, which gives some information about the device to the cloud interface. In order to properly display temperature data in the cloud it is necessary to enable temperature in the ui configuration part of the device status message, and this step will handle that. 
 
 At the top of main.c, add the following include folder:
@@ -315,6 +344,7 @@ k_work_submit(&set_device_status_work);
 Build and flash the code again. Try to read the temperature after the device has connected to the cloud, and verify that a temperature graph window will appear in the cloud. If the temperature is read several times the graph should reflect this. 
 
 ### Step 6 - Add a function to read the temperature at regular intervals
+------------------------------------------------------------------------
 In order to better utilize the graph functionality in nRF Cloud a timer will be added to read out the temperature automatically every 30 seconds. 
 Two new cloud commands will be added in order to allow the user to enabled or disable automatic temperature readings through the cloud interface. 
 To start the timer send {"temp":"timer"}. To stop the timer send {"temp":"stop"}
@@ -356,6 +386,7 @@ case CLOUD_EVT_DATA_RECEIVED:
 Build and flash the code. Verify that you can start regular temperature readings by sending {"temp":"timer"}, and stop them again by sending {"temp":"stop"}
 
 ### Step 7 - Control the RGB LED on the Thingy91 using the CAF module
+---------------------------------------------------------------------
 For this step the Core Application Framework (CAF) LED module will be enabled in order to control the RGB LED on the Thingy91. 
 
 Start by adding the following lines to the bottom of the prj.conf file:
@@ -423,6 +454,7 @@ Insert the following code in the overlay file:
 Now run a pristine build, either by pressing the button in the popup box, or by clicking the 'Pristine Build' button in the Actions menu. 
 
 ### Step 8 - Add commands to turn on and off the LED from the cloud
+-------------------------------------------------------------------
 In the following step two additional commands will be added to the application, allowing the LED to be turned on or off by sending direct commands from the cloud. 
 
 Add the following include to the top of main.c:
@@ -466,6 +498,7 @@ else if(decode_cloud_message(&evt->data.msg, "led", "blink red")) {
 Build and flash the code. After the device has connected to the cloud verify that the LED can be controlled by sending the {"led":"blink red"} and {"led":"off"} commands. 
 
 ### Step 9 - Add a thermostat function
+--------------------------------------
 In order to expand on the functionality introduced in the previous steps, and combine the temperature sensor, LED control and cloud interface elements into one feature, the goal of this step is to implement a simple thermostat function.
 A new command should be added introduced allowing a threshold temperature to be configured through the cloud. As an example, if the command {"thermostat":"28"} is set, the threshold should be set to 28 degrees. 
 Then whenever the temperature sensor is read the temperature should be compared to the threshold value. If the actual temperature is higher the LED should be set to blink red, and if the temperature is lower it should blink blue. 
@@ -473,6 +506,7 @@ Then whenever the temperature sensor is read the temperature should be compared 
 This is a free form exercise, and the code needed to complete the step will not be provided. 
 
 ### Bonus steps
+---------------
 In the unlikely event that all the steps above have been completed, with time to spare, here are some suggestions for further improvements
 - To save cloud bandwidth, add some code to the *read_temp_work_fn(..)* function to have the function skip the cloud update unless the temperature has changed more than a specific amount (1.0C for instance). 
 - Add support for the remaining environment readings supported by the BME680 sensor, such as humidity and air pressure
