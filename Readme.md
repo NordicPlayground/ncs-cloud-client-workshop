@@ -29,18 +29,24 @@ For instructions on how to install these items, please follow the exercise [here
 ### Step 1 - Setting up the cloud_client sample
 -----------------------------------------------
 
-In VSCode, click on 'Add an existing application' and select the NCS_INSTALL_FOLDER\v1.9.1\nrf\samples\nrf9160\cloud_client sample
+Open [https://nrfcloud.com/](https://nrfcloud.com/), and create a user if you haven't already done so. Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account).
 
-Find the "cloud_client" application in the application list, and click on 'Add Build Configuration'. 
+In VSCode, in the Welcome page of the nRF Connect interface, click on 'Create a new application from sample'.
+ Hint: A faster way to do this is to bring up the command palette in VSCode (by pressing F1), typing 'new application', and pressing Enter. 
 
-Select the board 'thingy91_nrf9160_ns'
+Ensure that 'Freestanding' application is selected and that the nRF Connect SDK version and selected toolchain is based on v1.9.1. Select the cloud_client sample as a reference, and give the application a new name such as 'cloud_client_workshop':
 
-Check the 'Enable debug options' box
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_create_application.JPG" width="400">
 
-Click on 'Build Configuration'
-Open the build output in the terminal window, and wait for the code to build
+Find the "cloud_client_workshop" application in the Applications list, and click on 'Add Build Configuration'. 
 
-Ensure that the nRF9160DK and the Thingy91 are connected as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#updating-firmware-through-external-debug-probe). Also make sure they are powered on
+Select the board 'thingy91_nrf9160_ns'. Check the 'Enable debug options' box, and click on 'Build Configuration':
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_create_build.JPG" width="400">
+
+Open the build output in the terminal window, and wait for the code to finish building. 
+
+Ensure that the nRF9160DK and the Thingy91 are connected as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#updating-firmware-through-external-debug-probe). Also make sure they are powered on.
 
 To show log output from the Thingy91 it is necessary to connect to one of two virtual CDC comports enumerated by the Thingy when it is connected over USB. The nRF9160DK will also enumerate various comports, and the easiest way to find out which comport is for log output from the Thingy you can use the LTE Link Monitor app available through nRF Connect for Desktop. Simply connect to the Thingy91 from the LTE Link Monitor, and check which comport the link monitor opens:
    
@@ -64,9 +70,7 @@ In the build overview in VSCode, expand the 'Application' group and double click
 
 It is advantageous to disable PSM mode in the LTE modem during development, as it will greatly reduce the latency when communicating with the cloud. To do this navigate to line 229 in main.c. Delete the *#if defined(CONFIG_POWER_SAVING_MODE_ENABLE)* line, and the corresponding *#endif* on line 243. 
 Change the *err = lte_lc_psm_req(true);* line to *err = lte_lc_psm_req(false);* in order to disable PSM mode. 
-
-Open [https://nrfcloud.com/](https://nrfcloud.com/), and create a user if you haven't already done so
-Make sure you install the SIM card in your Thingy91 and add it to the cloud, as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/ug_thingy91_gsg.html#creating-an-nrf-cloud-account)
+In order for this change to take effect you need to build and flash the code again. Just pressing Flash is sufficient, as this will automatically trigger a build if the code has changed. 
 
 Verify that you can open the device in the nRF Cloud interface, and that you can see the Terminal window
 
