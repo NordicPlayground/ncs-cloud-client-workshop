@@ -146,6 +146,8 @@ Build and flash the code, and verify that the environment readings are printed i
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s2_nrfterminal_env_readings.JPG" width="400">
 
+Code available here: [Code snapshot after step 2](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_2)
+
 ### Step 3 - Add a function to decode messages from the cloud
 -------------------------------------------------------------
 In this step a function will be added to decode the messages received from the cloud, and if the {"temp":"read"} command is received a message will be printed to the log.
@@ -198,6 +200,8 @@ if(decode_cloud_message(&evt->data.msg, "temp", "read")) {
 Build and flash the code, and verify that you get the following nRF Terminal output when sending the {"temp":"read"} command from the cloud:
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s3_temp_command_received.JPG" width = "400">
+
+Code available here: [Code snapshot after step 3](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_3)
 
 ### Step 4 - Send a temperature update with timestamp to the cloud
 ------------------------------------------------------------------
@@ -295,6 +299,8 @@ Build and flash the code. Once the Thingy91 connects to the cloud again send the
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s4_temp_in_cloud.JPG" width="500">
 
+Code available here: [Code snapshot after step 4](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_4)
+
 ### Step 5 - Update device status in the cloud
 ----------------------------------------------
 nRF Cloud allows devices to send a device status message, which gives some information about the device to the cloud interface. In order to properly display temperature data in the cloud it is necessary to enable temperature in the ui configuration part of the device status message, and this step will handle that. 
@@ -348,6 +354,8 @@ Build and flash the code again. Try to read the temperature after the device has
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s5_cloud_temp_graph.jpg" width="800">
 
+Code available here: [Code snapshot after step 5](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_5)
+
 ### Step 6 - Add a function to read the temperature at regular intervals
 ------------------------------------------------------------------------
 In order to better utilize the graph functionality in nRF Cloud a timer will be added to read out the temperature automatically every 30 seconds. 
@@ -389,6 +397,8 @@ case CLOUD_EVT_DATA_RECEIVED:
 ```
 
 Build and flash the code. Verify that you can start regular temperature readings by sending {"temp":"timer"}, and stop them again by sending {"temp":"stop"}
+
+Code available here: [Code snapshot after step 6](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_6)
 
 ### Step 7 - Control the RGB LED on the Thingy91 using the CAF module
 ---------------------------------------------------------------------
@@ -456,7 +466,9 @@ Insert the following code in the overlay file:
 };   
 ```
 
-Now run a pristine build, either by pressing the button in the popup box, or by clicking the 'Pristine Build' button in the Actions menu. 
+Now run a pristine build, either by pressing the button in the popup box, or by clicking the 'Pristine Build' button in the Actions menu.
+
+Code available here: [Code snapshot after step 7](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_7)
 
 ### Step 8 - Add commands to turn on and off the LED from the cloud
 -------------------------------------------------------------------
@@ -501,6 +513,8 @@ else if(decode_cloud_message(&evt->data.msg, "led", "blink red")) {
 ```
 
 Build and flash the code. After the device has connected to the cloud verify that the LED can be controlled by sending the {"led":"blink red"} and {"led":"off"} commands. 
+
+Code available here: [Code snapshot after step 8](https://github.com/NordicPlayground/ncs-cloud-client-workshop/tree/step_8)
 
 ### Step 9 - Add a thermostat function
 --------------------------------------
