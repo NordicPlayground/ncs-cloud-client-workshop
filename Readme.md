@@ -5,7 +5,7 @@ This repository contains a modified version of the cloud_client sample in the nR
 
 The goal of this workshop is to flash a Thingy91 with the cloud_client sample and connect to it from the nRF Cloud interface. 
 Then the example will be extended to take temperature readings from the BME680 sensor on the Thingy91, and send them to the cloud upon request. From the cloud the user can either request a single temperature reading, or start a timer that will read the temperature repeatedly at 30 second intervals. 
-Secondly the Core Application Framework LED module will be enabled in order to control the RGB LED on the Thingy91, and separate commands will be added to allow the LED to be turned on and off from the cloud interface. 
+Secondly the Common Application Framework LED module will be enabled in order to control the RGB LED on the Thingy91, and separate commands will be added to allow the LED to be turned on and off from the cloud interface. 
 The final task is to build upon these functionalities to implement a thermostat feature where a temperature threshold can be configured from the cloud interface, at which point the LED on the Thingy should show whether or not the measured temperature is above or below the set threshold. 
 
 ## HW Requirements
@@ -84,9 +84,9 @@ Verify that the message shows up in the nRF Terminal:
 
 ### Step 2 - Integrate the BME680 environment sensor 
 ----------------------------------------------------
-In the following step we are going to enable the BME680 environment on the Thingy91, in order to read out the temperature. The sensor will be enabled through the Kconfig interface, and the code from the [BME680 Zephyr sample](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/zephyr/samples/sensor/bme680/README.html) will be copied into the cloud_client project to verify that the sensor works. 
+In the following step we are going to enable the BME680 environment sensor on the Thingy91, in order to read out the local temperature. The sensor will be enabled through the Kconfig interface, and the code from the [BME680 Zephyr sample](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/zephyr/samples/sensor/bme680/README.html) will be copied into the cloud_client project to verify that the sensor works. 
 
-Open the Kconfig configurator in VSCode
+Start by opening the Kconfig configurator in VSCode:
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s1_kconfig.jpg" width="300">
 
@@ -208,15 +208,15 @@ The DATE_TIME library will be enabled to facilitate the reading of an accurate t
 The loop in main printing out environment information every 3 seconds will be removed, as this code was only added for testing purposes. 
 
 Start by opening the Kconfig configurator. Search for 'date_time', and enable the Date time library. Click 'Save to file'. 
-After doing this *CONFIG_DATE_TIME=y* should be added to the prj.conf file (it is also possible to simply add this line manually to prj.conf, without using the Kconfig configurator)
+After doing this *CONFIG_DATE_TIME=y* should be added to the prj.conf file (it is also possible to simply add this line manually to prj.conf, without using the Kconfig configurator).
 
 Add the following include to the top of main.c:
 ```C
 #include <date_time.h>
 ```
 
-It is not recommended to run a lot of code directly from an event handler, since event handlers are often running in interrupt context. From interrupt context there are many drivers and libraries that are unavailable (or unsafe), and you also risk blocking other interrupts in the system. 
-To avoid this issue it is possible to register a work item, which will be triggered from the event handler (by using k_work_submit(..)), but where the actual work function will be run from the thread context. 
+It is not recommended to run a lot of code directly from an event handler, since event handlers are often running in interrupt context. From interrupt context there are many drivers and libraries that are unavailable (or unsafe to use), and you also risk blocking other interrupts in the system which could lead to system instabilities or crashes. 
+To avoid this issue it is possible to register a work item, which will be triggered from the event handler (by using k_work_submit(..)), but where the actual work function will be run from the thread context. For more information about work queues and work items please refer to the [documentation](https://docs.zephyrproject.org/2.6.0/reference/kernel/threads/workqueue.html). 
 
 To implement this, start by declaring a work function and a work item by adding the following code at the top of main.c (below *static K_SEM_DEFINE(lte_connected, 0, 1);* ):
 ```C
@@ -290,7 +290,7 @@ case CLOUD_EVT_DATA_RECEIVED:
 	break;
 ```
 
-Remove the while loop that you added ad the end of main.c in an earlier step, to avoid spamming the log with environment readings
+Remove the while loop that you added ad the end of main.c in an earlier step, to avoid spamming the log with environment readings.
 
 Build and flash the code. Once the Thingy91 connects to the cloud again send the {"temp":"read"} command from the cloud, and verify that you get a temperature update in return:
 
@@ -391,7 +391,7 @@ Build and flash the code. Verify that you can start regular temperature readings
 
 ### Step 7 - Control the RGB LED on the Thingy91 using the CAF module
 ---------------------------------------------------------------------
-For this step the Core Application Framework (CAF) LED module will be enabled in order to control the RGB LED on the Thingy91. 
+For this step the Common Application Framework (CAF) LED module will be enabled in order to control the RGB LED on the Thingy91. 
 
 Start by adding the following lines to the bottom of the prj.conf file:
 ```C
@@ -413,7 +413,7 @@ Towards the top of main.c, just below the *LOG_MODULE_REGISTER(cloud_client, CON
 #include <caf/events/module_state_event.h>
 ```
 
-The Core Application Framework is based around a module called the Event Manager, which provides a generic event framework for sending status information between different modules in the application. To initialize the event manager add the following code to the main() function in main.c, just below the *LOG_INF("Cloud client has started");* line:
+The Common Application Framework is based around a module called the Event Manager, which provides a generic event framework for sending status information between different modules in the application. To initialize the event manager add the following code to the main() function in main.c, just below the *LOG_INF("Cloud client has started");* line:
 ```C
 event_manager_init();
 module_set_state(MODULE_STATE_READY);
