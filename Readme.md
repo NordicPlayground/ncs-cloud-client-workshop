@@ -100,11 +100,10 @@ Enable 'Sensor Drivers' and 'BME680 sensor', and click 'Save to file':
 
 Verify that the following lines were added to your prj.conf file:
 ```C
-CONFIG_SRAM_SIZE=128
-CONFIG_SRAM_BASE_ADDRESS=0x20020000
 CONFIG_SENSOR=y
-CONFIG_NRFX_TWIM2=y
 CONFIG_BME680=y
+CONFIG_DEBUG_THREAD_INFO=y
+CONFIG_DEBUG_OPTIMIZATIONS=y
 ```
 Add the following include to the top of your main.c file:
 ```C
@@ -345,7 +344,9 @@ The function defined above should be called as soon as the cloud is connected an
 k_work_submit(&set_device_status_work);
 ```
 
-Build and flash the code again. Try to read the temperature after the device has connected to the cloud, and verify that a temperature graph window will appear in the cloud. If the temperature is read several times the graph should reflect this. 
+Build and flash the code again. Try to read the temperature after the device has connected to the cloud, and verify that a temperature graph window will appear in the cloud. If the temperature is read several times the graph should reflect this:
+
+<img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s5_cloud_temp_graph.jpg" width="800">
 
 ### Step 6 - Add a function to read the temperature at regular intervals
 ------------------------------------------------------------------------
@@ -353,8 +354,8 @@ In order to better utilize the graph functionality in nRF Cloud a timer will be 
 Two new cloud commands will be added in order to allow the user to enabled or disable automatic temperature readings through the cloud interface. 
 To start the timer send {"temp":"timer"}. To stop the timer send {"temp":"stop"}
 
-First a Zephyr timer will be defined in order to trigger a callback at regular intervals. The timer callback function will trigger the temperature read function that we implemented in an earlier step. 
-Paste the following code in main.c, towards the top of the file, just below *static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);*:
+First a Zephyr timer will be defined in order to trigger a callback at regular intervals. The timer callback function will trigger the temperature read function that was implemented in step 4. 
+Paste the following code in main.c, towards the top of the file, just below *static K_WORK_DEFINE(read_temp_work, read_temp_work_fn);* :
 ```C
 static void read_temp_timer_fn(struct k_timer *timer)
 {
@@ -393,7 +394,7 @@ Build and flash the code. Verify that you can start regular temperature readings
 ---------------------------------------------------------------------
 For this step the Common Application Framework (CAF) LED module will be enabled in order to control the RGB LED on the Thingy91. 
 
-Start by adding the following lines to the bottom of the prj.conf file:
+Start by adding the following lines to the bottom of prj.conf:
 ```C
 CONFIG_CAF=y
 CONFIG_CAF_LEDS=y
@@ -422,7 +423,7 @@ module_set_state(MODULE_STATE_READY);
 In order for the CAF LED module to work the LED pins need to be described in the device tree. The Thingy91 board files does not include these definitions, which means they have to be added as a device tree overlay. 
 
 Start by expanding the 'Input files' section in the build overview, and click on the 'No overlay files, Click to create one' button. 
-A message box requesting you to run a pristine build will show up, to save some time don't click this yet. 
+A message box requesting you to run a pristine build will show up, but in order to save some time don't click this yet. 
 
 <img src="https://github.com/NordicPlayground/ncs-cloud-client-workshop/blob/workshop_with_instructions/pics/s7_add_overlay.JPG" width="200">
 
